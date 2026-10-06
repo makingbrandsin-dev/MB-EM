@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Green receipt/invoice body with scalloped bottom -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M 12,6 C 9.8,6 8,7.8 8,10 L 8,39 C 10.5,37 13.5,41 16,39 C 18.5,37 21.5,41 24,39 C 26.5,37 29.5,41 32,39 C 34.5,37 37.5,41 40,39 L 40,10 C 40,7.8 38.2,6 36,6 L 12,6 Z" />
+
+    <!-- White invoice line items -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 14,14 C 14,13 14.8,12.2 15.8,12.2 L 27,12.2 C 28,12.2 28.8,13 28.8,14 C 28.8,15 28,15.8 27,15.8 L 15.8,15.8 C 14.8,15.8 14,15 14,14 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 14,21 C 14,20 14.8,19.2 15.8,19.2 L 32.2,19.2 C 33.2,19.2 34,20 34,21 C 34,22 33.2,22.8 32.2,22.8 L 15.8,22.8 C 14.8,22.8 14,22 14,21 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 14,28 C 14,27 14.8,26.2 15.8,26.2 L 32.2,26.2 C 33.2,26.2 34,27 34,28 C 34,29 33.2,29.8 32.2,29.8 L 15.8,29.8 C 14.8,29.8 14,29 14,28 Z" />
+</vector>

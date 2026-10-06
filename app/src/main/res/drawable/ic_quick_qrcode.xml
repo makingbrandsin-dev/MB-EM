@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Top Left Corner Bracket -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 6,14 L 6,10 C 6,7.8 7.8,6 10,6 L 14,6 C 15.1,6 16,6.9 16,8 C 16,9.1 15.1,10 14,10 L 10,10 L 10,14 C 10,15.1 9.1,16 8,16 C 6.9,16 6,15.1 6,14 Z" />
+
+    <!-- Top Right Corner Bracket -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 42,14 C 42,15.1 41.1,16 40,16 C 38.9,16 38,15.1 38,14 L 38,10 L 34,10 C 32.9,10 32,9.1 32,8 C 32,6.9 32.9,6 34,6 L 38,6 C 40.2,6 42,7.8 42,10 L 42,14 Z" />
+
+    <!-- Bottom Left Corner Bracket -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 6,34 L 6,38 C 6,40.2 7.8,42 10,42 L 14,42 C 15.1,42 16,41.1 16,40 C 16,38.9 15.1,38 14,38 L 10,38 L 10,34 C 10,32.9 9.1,32 8,32 C 6.9,32 6,32.9 6,34 Z" />
+
+    <!-- Bottom Right Corner Bracket -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 42,34 L 42,38 C 42,40.2 40.2,42 38,42 L 34,42 C 32.9,42 32,41.1 32,40 C 32,38.9 32.9,38 34,38 L 38,38 L 38,34 C 38,32.9 38.9,32 40,32 C 41.1,32 42,32.9 42,34 Z" />
+
+    <!-- QR Blocks: Top Left Finder -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 14,14 L 20,14 C 21.1,14 22,14.9 22,20 L 22,20 C 22,21.1 21.1,22 20,22 L 14,22 C 12.9,22 12,21.1 12,20 L 12,16 C 12,14.9 12.9,14 14,14 Z" />
+
+    <!-- QR Blocks: Top Right Finder -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 28,14 L 34,14 C 35.1,14 36,14.9 36,16 L 36,20 C 36,21.1 35.1,22 34,22 L 28,22 C 26.9,22 26,21.1 26,20 L 26,16 C 26,14.9 26.9,14 28,14 Z" />
+
+    <!-- QR Blocks: Bottom Left Finder -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 14,26 L 20,26 C 21.1,26 22,26.9 22,28 L 22,32 C 22,33.1 21.1,34 20,34 L 14,34 C 12.9,34 12,33.1 12,32 L 12,28 C 12,26.9 12.9,26 14,26 Z" />
+
+    <!-- QR Blocks: Bottom Right Pattern -->
+    <path
+        android:fillColor="#3B82F6"
+        android:pathData="M 26,26 L 30,26 L 30,30 L 26,30 Z M 32,32 L 36,32 L 36,36 L 32,36 Z M 32,26 L 36,26 L 36,28 L 32,28 Z M 26,32 L 28,32 L 28,36 L 26,36 Z" />
+</vector>

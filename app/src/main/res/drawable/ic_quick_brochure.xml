@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <!-- Indigo/Purple PDF Brochure icon with folded corner -->
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M 12,6 L 30,6 L 38,14 L 38,40 C 38,42.2 36.2,44 34,44 L 12,44 C 9.8,44 8,42.2 8,40 L 8,10 C 8,7.8 9.8,6 12,6 Z" />
+
+    <!-- Folded corner shadow -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M 30,6 L 38,14 L 30,14 Z" />
+
+    <!-- PDF badge in red/coral -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M 12,20 L 26,20 C 27.1,20 28,20.9 28,22 L 28,28 C 28,29.1 27.1,30 26,30 L 12,30 Z" />
+
+    <!-- White text line in PDF -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M 15,24 L 23,24 C 23.5,24 24,24.5 24,25 C 24,25.5 23.5,26 23,26 L 15,26 Z" />
+
+    <!-- Content lines -->
+    <path
+        android:fillColor="#C7D2FE"
+        android:pathData="M 12,34 L 34,34 C 34.5,34 35,34.5 35,35 C 35,35.5 34.5,36 34,36 L 12,36 Z M 12,38 L 28,38 C 28.5,38 29,38.5 29,39 C 29,39.5 28.5,40 28,40 L 12,40 Z" />
+</vector>

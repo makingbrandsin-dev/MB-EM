@@ -1,0 +1,8 @@
+{
+  "name": "MB EM",
+  "description": "This app is for only employee and no admin, all the features are update in admin should reflect in employee app. ",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

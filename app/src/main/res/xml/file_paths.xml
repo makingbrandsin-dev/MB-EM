@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="cached_invoices" path="invoices/" />
+    <cache-path name="cached_pdfs" path="." />
+    <files-path name="invoices" path="invoices/" />
+    <files-path name="pdfs" path="." />
+    <external-cache-path name="ext_cache_invoices" path="invoices/" />
+    <external-files-path name="ext_files_invoices" path="invoices/" />
+</paths>

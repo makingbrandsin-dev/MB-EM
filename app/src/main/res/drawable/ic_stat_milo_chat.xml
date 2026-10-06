@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Milo Brand Silhouette Base -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M12,2 C7,2 3.5,5.5 3.5,10.5 C3.5,13 4.7,15.2 6.7,16.8 C5.9,18.8 7.5,21.4 9.9,21.8 C11.3,22 12.7,22 14.1,21.8 C16.5,21.4 18.1,18.8 17.3,16.8 C19.3,15.2 20.5,13 20.5,10.5 C20.5,5.5 17,2 12,2 Z" />
+    <!-- Inner Face Contour -->
+    <path
+        android:fillColor="#1F2937"
+        android:pathData="M12,5 C8.5,5 6,7.5 6,11 C6,13.5 7.5,15.5 9.5,16.5 C10.3,16.9 11.1,17 12,17 C12.9,17 13.7,16.9 14.5,16.5 C16.5,15.5 18,13.5 18,11 C18,7.5 15.5,5 12,5 Z" />
+    <!-- Chat Speech Bubble Overlay Badge -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M16,12 L22,12 C22.6,12 23,12.4 23,13 L23,21 C23,21.6 22.6,22 22,22 L16,22 C15.4,22 15,21.6 15,21 L15,13 C15,12.4 15.4,12 16,12 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M17,14 C16.4,14 16,14.4 16,15 L16,19 C16,19.6 16.4,20 17,20 L18.5,20 L20,21.5 L20,20 L21,20 C21.6,20 22,19.6 22,19 L22,15 C22,14.4 21.6,14 21,14 L17,14 Z" />
+</vector>

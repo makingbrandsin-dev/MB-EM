@@ -1,0 +1,212 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="360dp"
+    android:viewportWidth="200"
+    android:viewportHeight="360">
+
+    <!-- THINKING THOUGHT CLOUD (At top above head) -->
+    <!-- Small lower bubble 1 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M55,90 C50,90 46,94 46,99 C46,104 50,108 55,108 C60,108 64,104 64,99 C64,94 60,90 55,90 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M55,92 C51,92 48,95 48,99 C48,103 51,106 55,106 C59,106 62,103 62,99 C62,95 59,92 55,92 Z" />
+
+    <!-- Small lower bubble 2 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,68 C41,68 35,74 35,81 C35,88 41,94 48,94 C55,94 61,88 61,81 C61,74 55,68 48,68 Z" />
+
+    <!-- Big Fluffy Thought Cloud Bubble with soft 3D cloud shading -->
+    <path
+        android:fillColor="#F1F5F9"
+        android:pathData="M60,40 C45,40 32,52 32,68 C32,74 34,80 38,85 C28,88 20,98 20,110 C20,125 32,138 48,138 C52,138 56,137 60,135 C68,145 80,152 95,152 C115,152 132,140 138,124 C144,128 152,130 160,130 C175,130 188,118 188,102 C188,92 182,82 174,78 C178,72 180,65 180,58 C180,42 168,30 152,30 C146,30 140,32 135,36 C128,24 115,16 100,16 C82,16 68,26 60,40 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,38 C48,38 36,50 36,65 C36,70 38,76 42,80 C32,84 25,94 25,105 C25,119 36,130 50,130 C54,130 58,129 62,127 C70,136 82,142 96,142 C114,142 130,132 135,118 C140,122 148,124 155,124 C168,124 180,113 180,98 C180,89 174,80 166,76 C170,71 172,64 172,58 C172,44 162,34 148,34 C142,34 137,36 132,40 C125,29 113,22 100,22 C84,22 71,30 62,38 Z" />
+
+    <!-- Tail behind body -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M75,275 C55,285 35,305 42,320 C48,330 65,320 70,305 Z" />
+    <!-- Tail Fluff Tip -->
+    <path
+        android:fillColor="#92400E"
+        android:pathData="M38,308 C30,315 32,330 42,332 C50,334 54,324 48,312 Z" />
+
+    <!-- Lion Mane (Back Layer) -->
+    <path
+        android:fillColor="#B45309"
+        android:pathData="M100,78 C62,78 42,102 42,135 C42,155 50,172 62,182 C56,196 68,215 85,218 C95,220 105,220 115,218 C132,215 144,196 138,182 C150,172 158,155 158,135 C158,102 138,78 100,78 Z" />
+
+    <!-- Outer Mane Fluff Volume & Stylized Locks -->
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M100,72 C82,72 70,80 64,90 C50,86 38,98 34,114 C24,122 20,140 26,156 C20,172 28,188 40,196 C40,212 56,224 74,230 C92,236 108,236 126,230 C144,224 160,212 160,196 C172,188 180,172 174,156 C180,140 176,122 166,114 C162,98 150,86 136,90 C130,80 118,72 100,72 Z" />
+
+    <!-- Right Arm (On Hip / Akimbo Pose) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M140,225 C155,235 168,252 164,272 C160,288 145,296 132,288 C128,276 132,258 135,245 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M130,278 C134,278 140,282 140,292 C140,298 134,302 128,298 C126,290 126,282 130,278 Z" />
+
+    <!-- Torso / Blue T-Shirt -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M65,212 C65,212 75,208 100,208 C125,208 135,212 135,212 C148,215 158,228 155,248 L142,245 L140,282 C140,286 136,288 130,288 L70,288 C64,288 60,286 60,282 L58,245 L45,248 C40,228 52,215 65,212 Z" />
+    <!-- T-Shirt Shading / Ribbed Texture -->
+    <path
+        android:fillColor="#0369A1"
+        android:pathData="M92,220 C96,220 98,235 98,250 L102,250 C102,235 104,220 108,220 C106,238 104,275 100,282 C96,275 94,238 92,220 Z" />
+
+    <!-- Left Arm (Raised to Chin in Pensive Thinking Pose) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M56,225 C48,236 44,255 52,275 C60,290 74,285 82,268 C88,255 92,236 94,220 Z" />
+
+    <!-- Smartwatch on Left Wrist -->
+    <path
+        android:fillColor="#1E293B"
+        android:pathData="M68,226 L84,220 L88,232 L72,238 Z" />
+    <!-- Smartwatch Cyan Screen -->
+    <path
+        android:fillColor="#00E5FF"
+        android:pathData="M72,227 L82,223 L85,231 L75,235 Z" />
+
+    <!-- Left Hand Resting on Chin (Thinking Gesture) -->
+    <!-- Thumb resting along jaw -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M80,200 C80,192 90,188 98,192 C104,196 106,204 100,210 C92,216 80,214 80,200 Z" />
+    <!-- Fingers curled under chin -->
+    <path
+        android:fillColor="#D97706"
+        android:pathData="M94,198 C96,194 104,194 106,198 C108,204 102,212 96,212 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M92,204 C94,200 100,200 102,204 C104,208 98,214 94,214 Z" />
+
+    <!-- Pants (White Joggers / Trousers) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,284 L130,284 C134,284 136,288 135,292 L130,332 C129,338 124,342 118,342 L110,342 C106,342 104,338 103,332 L100,305 L97,332 C96,338 94,342 90,342 L82,342 C76,342 71,338 70,332 L65,292 C64,288 66,284 70,284 Z" />
+    <!-- Pants Folds & Shadow -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M98,290 L102,290 L101,315 L99,315 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M74,336 L86,336 L86,342 L74,342 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M114,336 L126,336 L126,342 L114,342 Z" />
+
+    <!-- Left Sneaker (Blue & White) -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M66,342 C66,342 75,338 86,338 C90,342 92,350 90,356 C84,358 62,358 56,354 C54,350 58,342 66,342 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,348 C68,344 78,344 84,348 C82,352 76,354 68,354 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,354 L92,354 L90,358 L56,358 Z" />
+
+    <!-- Right Sneaker (Blue & White) -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M134,342 C134,342 125,338 114,338 C110,342 108,350 110,356 C116,358 138,358 144,354 C146,350 142,342 134,342 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M138,348 C132,344 122,344 116,348 C118,352 124,354 132,354 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M146,354 L108,354 L110,358 L144,358 Z" />
+
+    <!-- Ears -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M62,102 C56,92 44,92 40,102 C36,112 46,124 56,120 Z" />
+    <path
+        android:fillColor="#FDE68A"
+        android:pathData="M58,104 C54,96 46,96 44,104 C42,110 48,118 54,116 Z" />
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M138,102 C144,92 156,92 160,102 C164,112 154,124 144,120 Z" />
+    <path
+        android:fillColor="#FDE68A"
+        android:pathData="M142,104 C146,96 154,96 156,104 C158,110 152,118 146,116 Z" />
+
+    <!-- Head Base (Golden Yellow Fur, slightly tilted in thought) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M100,98 C72,98 56,114 56,140 C56,164 74,182 100,182 C126,182 144,164 144,140 C144,114 128,98 100,98 Z" />
+
+    <!-- Cheeks & Muzzle (Cream White) -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M100,138 C84,138 75,148 75,160 C75,172 88,178 100,178 C112,178 125,172 125,160 C125,148 116,138 100,138 Z" />
+
+    <!-- Eyes (Looking Upward & Slightly Right in Pensive Concentration) -->
+    <!-- White Eye Base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M84,128 C78,128 74,134 74,140 C74,146 78,152 84,152 C90,152 94,146 94,140 C94,134 90,128 84,128 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M116,128 C110,128 106,134 106,140 C106,146 110,152 116,152 C122,152 126,146 126,140 C126,134 122,128 116,128 Z" />
+
+    <!-- Upward-Looking Brown Iris & Pupils -->
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M86,130 C82,130 79,133 79,138 C79,142 82,145 86,145 C90,145 93,142 93,138 C93,133 90,130 86,130 Z" />
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M118,130 C114,130 111,133 111,138 C111,142 114,145 118,145 C122,145 125,142 125,138 C125,133 122,130 118,130 Z" />
+    <path
+        android:fillColor="#1C1917"
+        android:pathData="M87,131 C84,131 82,134 82,137 C82,140 84,143 87,143 C90,143 92,140 92,137 C92,134 90,131 87,131 Z" />
+    <path
+        android:fillColor="#1C1917"
+        android:pathData="M119,131 C116,131 114,134 114,137 C114,140 116,143 119,143 C122,143 124,140 124,137 C124,134 122,131 119,131 Z" />
+
+    <!-- Bright Catchlights -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M89,132 C89,134 87,134 87,132 C87,130 89,130 89,132 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M121,132 C121,134 119,134 119,132 C119,130 121,130 121,132 Z" />
+
+    <!-- Inquisitive / Pensive Raised Eyebrows -->
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M74,120 C80,116 88,118 90,123 C87,121 80,120 76,121 Z" />
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M126,118 C120,114 112,117 110,122 C114,119 121,118 125,119 Z" />
+
+    <!-- Milo's Nose (Dark Charcoal / Chocolate Brown) -->
+    <path
+        android:fillColor="#262626"
+        android:pathData="M100,148 C94,148 91,152 91,155 C91,159 97,162 100,162 C103,162 109,159 109,155 C109,152 106,148 100,148 Z" />
+
+    <!-- Whiskers -->
+    <path
+        android:strokeColor="#78350F"
+        android:strokeWidth="1.2"
+        android:pathData="M78,155 L68,152 M78,158 L66,158 M78,161 L68,164" />
+    <path
+        android:strokeColor="#78350F"
+        android:strokeWidth="1.2"
+        android:pathData="M122,155 L132,152 M122,158 L134,158 M122,161 L132,164" />
+
+    <!-- Pensive / Curious Smile Mouth Line -->
+    <path
+        android:fillColor="#78350F"
+        android:pathData="M92,164 C96,168 108,168 112,163 C108,165 96,165 92,164 Z" />
+
+</vector>
