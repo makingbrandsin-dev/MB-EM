@@ -46,7 +46,8 @@ fun TasksScreen(
     onBack: () -> Unit,
     onNavigateToCrm: () -> Unit = {},
     onNavigateToAttendance: () -> Unit = {},
-    onNavigateToProfile: (() -> Unit)? = null
+    onNavigateToProfile: (() -> Unit)? = null,
+    onNavigateToInsights: () -> Unit = {}
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val employees by viewModel.employees.collectAsState()
@@ -83,6 +84,9 @@ fun TasksScreen(
                 onBack = onBack,
                 onNavigateToProfile = onNavigateToProfile,
                 actions = {
+                    IconButton(onClick = { onNavigateToInsights() }) {
+                        Icon(Icons.Default.Insights, contentDescription = "Insights", tint = BrandBlue)
+                    }
                     IconButton(onClick = { isKanbanMode = !isKanbanMode }) {
                         Icon(
                             if (isKanbanMode) Icons.Default.ViewList else Icons.Default.ViewKanban,

@@ -58,6 +58,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Crm : Screen("crm")
     object Tasks : Screen("tasks")
+    object ProductivityInsights : Screen("productivity_insights")
     object Attendance : Screen("attendance")
     object Work : Screen("work")
     object Leads : Screen("leads")
@@ -525,6 +526,21 @@ fun MainAppNavHost(viewModel: MainViewModel) {
                     onNavigateToProfile = { navController.navigate(Screen.Profile.route) }
                 )
             }
+
+            // 3b. Productivity Insights
+            composable(
+                route = Screen.ProductivityInsights.route,
+                enterTransition = { tabEnterTransition() },
+                exitTransition = { tabExitTransition() },
+                popEnterTransition = { tabEnterTransition() },
+                popExitTransition = { tabExitTransition() }
+            ) {
+                ProductivityInsightsScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
 
             // 4. Attendance View
             composable(

@@ -127,8 +127,9 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   // Data Visualization (Uncomment if Vico charts needed in future)
-  // implementation("com.patrykandpatrick.vico:compose-m3:2.0.0-alpha.18")
-  // implementation("com.patrykandpatrick.vico:compose:2.0.0-alpha.18")
+  implementation("com.patrykandpatrick.vico:compose-m3:2.0.0-alpha.18")
+  implementation("com.patrykandpatrick.vico:compose:2.0.0-alpha.18")
+  implementation("com.patrykandpatrick.vico:core:2.0.0-alpha.18")
   
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)

@@ -309,11 +309,14 @@ object FirebaseAuthHelper {
         )
     }
 
+    private var firebaseAuthFailed = false
+
     /**
      * Checks whether a valid, live Firebase API key is configured.
      * Prevents RecaptchaCallWrapper from throwing unhandled "API key not valid" errors on placeholder builds.
      */
     fun isFirebaseApiKeyValid(): Boolean {
+        if (firebaseAuthFailed) return false
         return try {
             val app = com.google.firebase.FirebaseApp.getInstance()
             val key = app.options.apiKey
@@ -355,6 +358,7 @@ object FirebaseAuthHelper {
             val errStr = e.localizedMessage ?: e.message ?: ""
             Log.w(TAG, "signInWithEmailAndPassword notice: $errStr")
             if (errStr.contains("API key not valid", ignoreCase = true) || errStr.contains("Recaptcha", ignoreCase = true) || errStr.contains("internal error", ignoreCase = true)) {
+                firebaseAuthFailed = true
                 Pair(false, "API_KEY_INVALID")
             } else {
                 Pair(false, errStr.ifBlank { "Invalid credentials." })
