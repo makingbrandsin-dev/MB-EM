@@ -22,7 +22,7 @@ import org.robolectric.annotation.Config
 import java.util.Date
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@Config(sdk = [34], application = TestApp::class)
 class RoomDatabaseSchemaTest {
 
     private lateinit var db: AppDatabase

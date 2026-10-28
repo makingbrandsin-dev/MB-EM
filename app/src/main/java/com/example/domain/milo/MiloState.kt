@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 /**
  * The 13 core animation and emotional states for Milo,
- * the official lion assistant of MB Tracker.
+ * the official lion assistant of MB EM.
  */
 enum class MiloState(
     val title: String,

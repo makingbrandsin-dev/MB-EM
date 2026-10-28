@@ -366,7 +366,7 @@ fun getMiloOnboardingSlides(): List<MiloOnboardingSlide> {
             title = "Meet Milo, Your Smart AI Co-Pilot",
             subtitle = "Always by your side to boost productivity",
             description = "Milo is Making Brands' energetic lion companion. He tracks your live tasks, guides daily priorities, and celebrates your business milestones!",
-            speechBubble = "“Roar! Welcome to MB Traker! I'm here to help you crush today's goals!”",
+            speechBubble = "“Roar! Welcome to MB EM! I'm here to help you crush today's goals!”",
             badgeText = "MEET MILO",
             badgeColor = ElectricBlue,
             primaryColor = ElectricBlue,

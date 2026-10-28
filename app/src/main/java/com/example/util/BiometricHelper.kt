@@ -97,7 +97,7 @@ object BiometricHelper {
     // Biometric Security Controls for Employee Login
     fun isBiometricForEmployeeLoginEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_BIOMETRIC_EMPLOYEE_LOGIN, true) && isBiometricSettingEnabled(context)
+        return prefs.getBoolean(KEY_BIOMETRIC_EMPLOYEE_LOGIN, false) && isBiometricSettingEnabled(context)
     }
 
     fun setBiometricForEmployeeLoginEnabled(context: Context, enabled: Boolean) {
@@ -164,7 +164,7 @@ object BiometricHelper {
     fun promptBiometricAuth(
         activity: FragmentActivity,
         title: String = "Biometric Sign-In",
-        subtitle: String = "Use fingerprint or face recognition to unlock MB Traker",
+        subtitle: String = "Use fingerprint or face recognition to unlock MB EM",
         description: String? = null,
         negativeButtonText: String = "Cancel",
         onSuccess: () -> Unit,
@@ -226,8 +226,7 @@ object BiometricHelper {
                 onError("Biometric prompt error: ${e.message}")
             }
         } else {
-            // Virtualized emulator / sensor ready fallback for rapid testing
-            onSuccess()
+            onError("Biometric authentication is unavailable on this device or not enrolled.")
         }
     }
 }

@@ -34,7 +34,7 @@ object MiloTaskDecomposer {
                 SubtaskItem(title = "Confirm meeting time & location via call", estimatedMinutes = 5),
                 SubtaskItem(title = "Prepare product samples & presentation", estimatedMinutes = 20),
                 SubtaskItem(title = "Conduct site inspection & note requirements", estimatedMinutes = 45),
-                SubtaskItem(title = "Log meeting summary in MB Tracker CRM", estimatedMinutes = 10)
+                SubtaskItem(title = "Log meeting summary in MB EM CRM", estimatedMinutes = 10)
             )
 
             lower.contains("audit") || lower.contains("review") -> listOf(

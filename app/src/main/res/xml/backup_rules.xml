@@ -1,13 +1,17 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android Auto Backup Rules (Legacy API < 31).
+    Excludes sensitive enterprise databases, user tokens, and biometrics.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Exclude local Room database files -->
+    <exclude domain="database" path="app_database" />
+    <exclude domain="database" path="app_database-shm" />
+    <exclude domain="database" path="app_database-wal" />
+
+    <!-- Exclude sensitive authentication tokens, biometrics, and user credentials -->
+    <exclude domain="sharedpref" path="app_biometric_prefs.xml" />
+    <exclude domain="sharedpref" path="auth_session_prefs.xml" />
+    <exclude domain="sharedpref" path="mb_auth_prefs.xml" />
+    <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.xml" />
 </full-backup-content>

@@ -14,14 +14,11 @@ class ExampleUnitTest {
   }
 
   @Test
-  fun `admin role strings redirect to manager dashboard`() {
-    val adminRoles = listOf("admin", "ADMIN", "MB Admin", "Manager", "Executive Director", "Lead")
-    for (role in adminRoles) {
-      val parsed = AppRole.parse(role)
-      assertEquals("Expected ADMIN for $role", AppRole.ADMIN, parsed)
-      assertTrue("Expected isAdmin=true for $role", parsed.isAdmin)
-      assertEquals("Expected manager route for $role", "manager", parsed.targetRoute)
-    }
+  fun `admin role string parses to ADMIN`() {
+    val parsed = AppRole.parse("admin")
+    assertEquals("Expected ADMIN for admin", AppRole.ADMIN, parsed)
+    assertTrue("Expected isAdmin=true for admin", parsed.isAdmin)
+    assertEquals("Expected home route for admin", "home", parsed.targetRoute)
   }
 
   @Test

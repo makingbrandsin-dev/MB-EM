@@ -2,6 +2,8 @@ package com.example.ui.screens
 
 import android.app.Application
 import android.content.Context
+import androidx.compose.runtime.mutableStateOf
+import com.example.ui.navigation.ScreenType
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -64,14 +67,7 @@ data class WhatsAppDispatchEvent(
     val isAutoSent: Boolean = true
 )
 
-data class OtpSessionState(
-    val otpCode: String = "",
-    val phoneNumber: String = "",
-    val role: String = "Employee",
-    val isAdmin: Boolean = false,
-    val generatedAt: Long = 0L,
-    val isVerified: Boolean = false
-)
+
 
 data class ProjectWorkloadItem(
     val projectName: String,
@@ -132,15 +128,15 @@ data class ThirtyDayTrendsSummary(
 data class ThirtyDayTrendsState(
     val points: List<DailyTrendDataPoint> = emptyList(),
     val summary: ThirtyDayTrendsSummary = ThirtyDayTrendsSummary(
-        averageDailyAttendanceHours = 8.2f,
-        attendanceRatePercentage = 95.5f,
-        totalAttendanceDays = 22,
-        totalWorkingDays = 23,
-        averageTaskCompletionRate = 82.4f,
-        totalTasksCompleted = 56,
-        totalTasksAssigned = 68,
-        bestAttendanceStreak = 18,
-        highestCompletionDay = "21 Sep"
+        averageDailyAttendanceHours = 0f,
+        attendanceRatePercentage = 0f,
+        totalAttendanceDays = 0,
+        totalWorkingDays = 0,
+        averageTaskCompletionRate = 0f,
+        totalTasksCompleted = 0,
+        totalTasksAssigned = 0,
+        bestAttendanceStreak = 0,
+        highestCompletionDay = "-"
     )
 )
 
@@ -162,6 +158,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     private val connectivityMonitor = ConnectivityMonitor(getApplication())
     val isOnline = connectivityMonitor.isOnline
+    
+    // Navigation State
+    val currentScreen = mutableStateOf(ScreenType.Splash)
+    fun navigateTo(screen: ScreenType) {
+        currentScreen.value = screen
+    }
     
     override fun onCleared() {
         super.onCleared()
@@ -276,12 +278,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val employeeCount: StateFlow<Int> = employeeRepository.employeeCount
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 5)
 
-    // Realtime attendance timer state
-    val latestAttendance = attendanceDao.getLatestAttendance()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    val currentEmployeeName = MutableStateFlow(
+        com.example.data.session.UserSessionManager.currentSessionState.value.displayName.ifBlank {
+            com.example.util.AppPreferences.getUserName(application) ?: "User"
+        }
+    )
+    val currentEmployeeRole = MutableStateFlow(
+        com.example.data.session.UserSessionManager.currentSessionState.value.role.ifBlank {
+            com.example.util.AppPreferences.getUserRole(application) ?: "Employee"
+        }
+    )
 
-    val allAttendance = attendanceDao.getAllAttendance()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Realtime attendance timer state
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val latestAttendance = currentEmployeeName.flatMapLatest { name ->
+        if (name.isNotBlank()) {
+            attendanceDao.getLatestAttendanceForEmployee(name)
+        } else {
+            attendanceDao.getLatestAttendance()
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val allAttendance = currentEmployeeName.flatMapLatest { name ->
+        if (name.isNotBlank()) {
+            attendanceDao.getAllAttendanceForEmployee(name)
+        } else {
+            attendanceDao.getAllAttendance()
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Firebase Realtime Status & FCM Push Notifications
     val syncState = FirebaseRealtimeManager.syncState
@@ -417,6 +442,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return bannerManager.saveBannerImageLocally(sourceUri)
     }
 
+    // Step 2: Bind Real-Time Snapshot Listener to ViewModel (UserSyncRepository)
+    val userSyncRepository: UserSyncRepository = container.userSyncRepository
+
+    // Real-Time Live Admin Broadcasts stream directly backed by Firestore addSnapshotListener
+    val liveAdminBroadcasts: StateFlow<List<AdminBroadcast>> = userSyncRepository.getAdminBroadcastsLive()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // Real-Time Live Shared Tasks stream directly backed by Firestore addSnapshotListener
+    val liveSharedTasks: StateFlow<List<TaskEntity>> = userSyncRepository.getSharedTasksLive()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
     // Enterprise Admin Push Notifications Broadcast (FCM & Firestore)
     private val fcmBroadcastManager = FcmBroadcastManager.getInstance(application)
     val fcmToken: StateFlow<String?> = fcmBroadcastManager.fcmToken
@@ -425,7 +469,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val fcmBroadcastHistory: StateFlow<List<FcmBroadcastLog>> = fcmBroadcastManager.broadcastHistory
 
     private val _adminBroadcasts = MutableStateFlow<List<AdminBroadcastLog>>(emptyList())
-    val adminBroadcasts: StateFlow<List<AdminBroadcastLog>> = _adminBroadcasts.asStateFlow()
+    // Merges liveAdminBroadcasts with local history for comprehensive backward compatibility
+    val adminBroadcasts: StateFlow<List<AdminBroadcastLog>> = combine(
+        liveAdminBroadcasts,
+        _adminBroadcasts
+    ) { liveList, localList ->
+        val mappedLive = liveList.map { b ->
+            AdminBroadcastLog(
+                id = b.id,
+                title = b.title,
+                message = b.message,
+                audience = b.audience,
+                priority = b.priority,
+                timestamp = b.timestamp
+            )
+        }
+        (mappedLive + localList).distinctBy { it.id }.sortedByDescending { it.timestamp }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
     fun sendAdminBroadcastPushNotification(
         title: String,
@@ -438,7 +502,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         context: Context? = null
     ) {
         viewModelScope.launch {
-            // 1. Dispatch through FcmBroadcastManager (writes to Firestore 'PushBroadcasts', triggers system notification & syncs across devices)
+            val broadcastItem = AdminBroadcast(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                message = message,
+                audience = audience,
+                priority = priority,
+                category = category,
+                topic = topic,
+                actionRoute = actionRoute,
+                senderName = "MB Admin",
+                timestamp = System.currentTimeMillis()
+            )
+
+            // 1. Dispatch through UserSyncRepository (writes to Firestore 'admin_broadcasts' & 'PushBroadcasts' instantly)
+            userSyncRepository.sendBroadcast(broadcastItem)
+
+            // 2. Dispatch through FcmBroadcastManager (triggers system notification & device token registration)
             fcmBroadcastManager.sendBroadcast(
                 title = title,
                 message = message,
@@ -450,19 +530,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 senderName = "MB Admin"
             )
 
-            // 2. Also log to backward-compatible legacy admin broadcast history
+            // 3. Update local state
             val newLog = AdminBroadcastLog(
+                id = broadcastItem.id,
                 title = title,
                 message = message,
                 audience = audience,
-                priority = priority
+                priority = priority,
+                timestamp = broadcastItem.timestamp
             )
             _adminBroadcasts.value = listOf(newLog) + _adminBroadcasts.value
         }
     }
 
     fun deleteBroadcastLog(broadcastId: String) {
-        fcmBroadcastManager.deleteBroadcast(broadcastId)
+        viewModelScope.launch {
+            userSyncRepository.deleteBroadcast(broadcastId)
+            fcmBroadcastManager.deleteBroadcast(broadcastId)
+            _adminBroadcasts.value = _adminBroadcasts.value.filter { it.id != broadcastId }
+        }
     }
 
     // Battery Saver & Power Optimization
@@ -1054,17 +1140,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val userSession = com.example.data.session.UserSessionManager.currentSessionState
 
-    val currentEmployeeName = MutableStateFlow(
-        com.example.data.session.UserSessionManager.currentSessionState.value.displayName.ifBlank {
-            com.example.util.AppPreferences.getUserName(application) ?: "User"
-        }
-    )
-    val currentEmployeeRole = MutableStateFlow(
-        com.example.data.session.UserSessionManager.currentSessionState.value.role.ifBlank {
-            com.example.util.AppPreferences.getUserRole(application) ?: "Employee"
-        }
-    )
-
     init {
         // Initialize DataStore & Firebase-backed UserSessionManager immediately on startup
         com.example.data.session.UserSessionManager.initialize(application, userProfileDao)
@@ -1093,7 +1168,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             notificationDao = notificationDao,
             projectDao = projectDao,
             leaveDao = leaveDao,
-            shiftDao = shiftDao
+            shiftDao = shiftDao,
+            employeeDao = employeeDao
         )
 
         // Continuous DataStore Caching for Critical Tasks, Shifts, and CRM Leads
@@ -1615,8 +1691,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isCheckingFirestoreRole: StateFlow<Boolean> = FirestoreAuthProvider.isCheckingRole
     val firestoreAuthStatus: StateFlow<String?> = FirestoreAuthProvider.lastStatusMessage
 
-    private val _otpSession = MutableStateFlow<OtpSessionState?>(null)
-    val otpSession: StateFlow<OtpSessionState?> = _otpSession.asStateFlow()
+
 
     private val _isLoggedIn = MutableStateFlow(BiometricHelper.isUserLoggedIn(application))
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -1658,462 +1733,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return isFirebaseSignedIn || isLocalLoggedIn
     }
 
-    fun requestWhatsAppOtp(
-        context: Context,
-        phoneNumber: String,
-        role: String = "Employee",
-        isAdmin: Boolean = false
-    ): String {
-        val code = (100000..999999).random().toString()
-        _otpSession.value = OtpSessionState(
-            otpCode = code,
-            phoneNumber = phoneNumber,
-            role = role,
-            isAdmin = isAdmin,
-            generatedAt = System.currentTimeMillis()
-        )
 
-        val appName = "MB Traker"
-        val message = """
-            🔐 *$appName Verification Code*
-            
-            Your One-Time Passcode (OTP) is: *$code*
-            Account: $role ($phoneNumber)
-            
-            Enter this 6-digit code in the app to access your workspace. Valid for 10 minutes.
-            
-            🌐 makingbrands.in
-        """.trimIndent()
-
-        // Dispatch through WhatsApp
-        WhatsAppHelper.sendWhatsAppMessage(context, phoneNumber, message, showSuccessToast = false)
-
-        // Show instant system notification alert
-        NotificationHelper.showOtpAlert(context, code, phoneNumber)
-
-        // Add to notification center
-        viewModelScope.launch {
-            notificationDao.insert(
-                NotificationEntity(
-                    title = "🔐 WhatsApp OTP Generated: $code",
-                    subtitle = "Verification code dispatched for $role ($phoneNumber)",
-                    timeAgo = "Just now",
-                    category = "attendance",
-                    isRead = false
-                )
-            )
-        }
-
-        return code
-    }
-
-    fun verifyOtp(enteredCode: String): Boolean {
-        val current = _otpSession.value ?: return false
-        val isValid = enteredCode.trim() == current.otpCode || enteredCode.trim() == "123456"
-        if (isValid) {
-            _otpSession.value = current.copy(isVerified = true)
-            _isLoggedIn.value = true
-            _userRole.value = current.role
-
-            BiometricHelper.saveUserLoginState(
-                getApplication(),
-                loggedIn = true,
-                role = current.role,
-                phone = current.phoneNumber
-            )
-
-            if (current.isAdmin) {
-                currentEmployeeName.value = "MB Admin"
-                currentEmployeeRole.value = "Administrator"
-            } else {
-                currentEmployeeName.value = "Rahul Sharma"
-                currentEmployeeRole.value = "Senior Android Developer"
-            }
-
-            viewModelScope.launch {
-                notificationDao.insert(
-                    NotificationEntity(
-                        title = "✅ Sign-in Verified via WhatsApp OTP",
-                        subtitle = "Welcome back, ${current.role}! Workspace access granted.",
-                        timeAgo = "Just now",
-                        category = "attendance",
-                        isRead = false
-                    )
-                )
-            }
-            return true
-        }
-        return false
-    }
 
     /**
-     * Verifies OTP, checks the user's role stored in Firestore upon login,
-     * updates user state accordingly, and redirects the UI flow to either
-     * the Admin Dashboard ("manager") or Employee Workspace ("home").
-     */
-    fun verifyOtpWithFirestore(
-        enteredCode: String,
-        onComplete: (success: Boolean, isAdmin: Boolean, targetRoute: String) -> Unit
-    ) {
-        val current = _otpSession.value
-        if (current == null) {
-            onComplete(false, false, "")
-            return
-        }
-        val isValid = enteredCode.trim() == current.otpCode || enteredCode.trim() == "123456"
-        if (!isValid) {
-            onComplete(false, false, "")
-            return
-        }
-
-        viewModelScope.launch {
-            val checkResult = FirestoreAuthProvider.checkUserRoleInFirestore(
-                identifier = current.phoneNumber,
-                defaultRoleHint = current.role
-            )
-            val isAdmin = checkResult.isAdmin
-            val resolvedRole = if (isAdmin) "MB Admin" else "Employee"
-
-            _otpSession.value = current.copy(isVerified = true)
-            _isLoggedIn.value = true
-            _userRole.value = resolvedRole
-
-            BiometricHelper.saveUserLoginState(
-                getApplication(),
-                loggedIn = true,
-                role = resolvedRole,
-                phone = current.phoneNumber
-            )
-
-            currentEmployeeName.value = checkResult.user.name
-            currentEmployeeRole.value = checkResult.user.designation
-
-            // Save to Room user profile for offline session consistency
-            userProfileDao.insertOrUpdateProfile(
-                UserProfileEntity(
-                    id = 1L,
-                    name = checkResult.user.name,
-                    role = checkResult.user.designation,
-                    isOnboarded = true,
-                    email = checkResult.user.email,
-                    phone = checkResult.user.phoneNumber,
-                    department = checkResult.user.department
-                )
-            )
-
-            notificationDao.insert(
-                NotificationEntity(
-                    title = "✅ WhatsApp OTP & Firestore Role Verified",
-                    subtitle = "Role '${checkResult.user.rawRole}' confirmed in Firestore. Redirecting to ${if (isAdmin) "Admin Dashboard" else "Employee Workspace"}.",
-                    timeAgo = "Just now",
-                    category = "attendance",
-                    isRead = false
-                )
-            )
-
-            onComplete(true, isAdmin, checkResult.targetRoute)
-        }
-    }
-
-    /**
-     * Direct Sign-In via Firestore: Queries the user's role in Firestore and
-     * redirects to either the Admin Dashboard ("manager") or Employee Workspace ("home").
-     */
-    fun loginWithFirestore(
-        phoneNumber: String,
-        password: String? = null,
-        selectedRoleHint: String? = null,
-        onComplete: (isAdmin: Boolean, targetRoute: String) -> Unit
-    ) {
-        viewModelScope.launch {
-            val checkResult = FirestoreAuthProvider.checkUserRoleInFirestore(
-                identifier = phoneNumber,
-                defaultRoleHint = selectedRoleHint
-            )
-            val isAdmin = checkResult.isAdmin
-            val resolvedRole = if (isAdmin) "MB Admin" else "Employee"
-
-            _isLoggedIn.value = true
-            _userRole.value = resolvedRole
-
-            BiometricHelper.saveUserLoginState(
-                getApplication(),
-                loggedIn = true,
-                role = resolvedRole,
-                phone = phoneNumber
-            )
-
-            currentEmployeeName.value = checkResult.user.name
-            currentEmployeeRole.value = checkResult.user.designation
-
-            userProfileDao.insertOrUpdateProfile(
-                UserProfileEntity(
-                    id = 1L,
-                    name = checkResult.user.name,
-                    role = checkResult.user.designation,
-                    isOnboarded = true,
-                    email = checkResult.user.email,
-                    phone = checkResult.user.phoneNumber,
-                    department = checkResult.user.department
-                )
-            )
-
-            notificationDao.insert(
-                NotificationEntity(
-                    title = "✅ Authenticated via Firestore: ${checkResult.user.name}",
-                    subtitle = "Role '${checkResult.user.rawRole}' loaded from Firestore. Redirecting to ${if (isAdmin) "Admin Dashboard" else "Employee Workspace"}.",
-                    timeAgo = "Just now",
-                    category = "attendance",
-                    isRead = false
-                )
-            )
-
-            onComplete(isAdmin, checkResult.targetRoute)
-        }
-    }
-
-    /**
-     * 🔐 Employee Sign-In: Authenticates the employee using Firebase Authentication
-     * and synchronizes credentials with Firestore and the local Room database.
+     * 🔐 Employee Sign-In: Authenticates the employee using genuine Firebase Authentication.
+     * Fails closed: Never fakes success or creates local bypass accounts.
      */
     fun loginWithEmployeeCredentials(
         email: String,
         password: String,
-        onResult: (success: Boolean, errorMessage: String?, isAdmin: Boolean) -> Unit
+        onResult: (success: Boolean, errorMessage: String?, isAdmin: Boolean, isPending: Boolean) -> Unit
     ) {
         viewModelScope.launch {
             val cleanEmail = email.trim().lowercase()
 
-            // 1. Direct Firebase Authentication attempt
-            val fbResult = FirebaseAuthHelper.signInWithEmailAndPassword(cleanEmail, password.trim())
+            val fbResult = FirebaseAuthHelper.signInWithEmailAndPassword(cleanEmail, password.trim(), getApplication())
             if (fbResult.first) {
-                // Firebase Auth succeeded! Establish or update local employee session
-                var emp = employeeDao.getEmployeeByEmail(cleanEmail)
-                if (emp == null) {
-                    val name = cleanEmail.substringBefore("@").replace(".", " ").split(" ")
-                        .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                    val newEmp = EmployeeEntity(
-                        name = name,
-                        email = cleanEmail,
-                        password = password.trim(),
-                        phone = "+91 98765 00000",
-                        designation = "Operations Specialist",
-                        department = Department.OPERATIONS,
-                        role = EmployeeRole.DEVELOPER,
-                        status = EmployeeStatus.ACTIVE
-                    )
-                    employeeDao.insert(newEmp)
-                    emp = newEmp
-                }
+                val record = FirebaseAuthHelper.currentUserRecord.value
+                val isAdmin = record?.isAdmin ?: false
+                val isPending = record?.isPending ?: false
+                val resolvedRole = if (isAdmin) "Admin" else "Employee"
 
                 _isLoggedIn.value = true
-                _userRole.value = "Employee"
-                currentEmployeeName.value = emp.name
-                currentEmployeeRole.value = emp.designation
-                FirebaseRealtimeManager.setCurrentEmployeeName(emp.name)
+                _userRole.value = resolvedRole
+
+                val name = record?.displayName ?: cleanEmail.substringBefore("@")
+                val desig = record?.designation ?: "Operations Specialist"
+
+                currentEmployeeName.value = name
+                currentEmployeeRole.value = desig
+                FirebaseRealtimeManager.setCurrentEmployeeName(name)
 
                 BiometricHelper.saveUserLoginState(
                     getApplication(),
                     loggedIn = true,
-                    role = "Employee",
-                    phone = emp.phone
+                    role = resolvedRole,
+                    phone = cleanEmail
                 )
+
                 userProfileDao.insertOrUpdateProfile(
                     UserProfileEntity(
                         id = 1L,
-                        name = emp.name,
-                        role = emp.designation,
+                        name = name,
+                        role = desig,
                         isOnboarded = true,
                         email = cleanEmail,
-                        phone = emp.phone,
-                        department = emp.department.name
+                        phone = "",
+                        department = record?.department ?: "Operations"
                     )
                 )
+
                 notificationDao.insert(
                     NotificationEntity(
-                        title = "✅ Firebase Auth Verified: ${emp.name}",
-                        subtitle = "Employee account authenticated via Firebase ($cleanEmail).",
+                        title = "✅ Signed in with Firebase Auth",
+                        subtitle = "Authenticated as $name ($cleanEmail).",
                         timeAgo = "Just now",
                         category = "attendance",
                         isRead = false
                     )
                 )
-                onResult(true, null, false)
-                return@launch
-            }
 
-            // 2. Check local Room database if offline or pre-configured
-            val localEmp = employeeDao.getEmployeeByEmail(cleanEmail)
-            if (localEmp != null) {
-                if (localEmp.password.isNotBlank() && localEmp.password != password.trim()) {
-                    onResult(false, "Incorrect password. Please verify your employee password.", false)
-                    return@launch
-                }
-                // Register in Firebase Auth in background so next login uses Firebase directly
-                if (FirebaseAuthHelper.isFirebaseApiKeyValid()) {
-                    try {
-                        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                        auth.createUserWithEmailAndPassword(cleanEmail, password.trim()).awaitTask()
-                        FirebaseAuthHelper.persistUserToFirestore(
-                            uid = auth.currentUser?.uid ?: "emp_${System.currentTimeMillis()}",
-                            email = cleanEmail,
-                            displayName = localEmp.name,
-                            roleHint = "employee"
-                        )
-                    } catch (_: Exception) { }
-                }
-
-                _isLoggedIn.value = true
-                _userRole.value = "Employee"
-                currentEmployeeName.value = localEmp.name
-                currentEmployeeRole.value = localEmp.designation
-                FirebaseRealtimeManager.setCurrentEmployeeName(localEmp.name)
-
-                BiometricHelper.saveUserLoginState(
-                    getApplication(),
-                    loggedIn = true,
-                    role = "Employee",
-                    phone = localEmp.phone
-                )
-                userProfileDao.insertOrUpdateProfile(
-                    UserProfileEntity(
-                        id = 1L,
-                        name = localEmp.name,
-                        role = localEmp.designation,
-                        isOnboarded = true,
-                        email = localEmp.email,
-                        phone = localEmp.phone,
-                        department = localEmp.department.name
-                    )
-                )
-                onResult(true, null, false)
-                return@launch
-            }
-
-            // 3. Query Firestore 'users' collection to check if employee was created remotely
-            try {
-                val fs = com.example.data.firebase.FirestoreDbProvider.getFirestore(getApplication())
-                val snapshot = fs.collection("users")
-                    .whereEqualTo("email", cleanEmail)
-                    .limit(1)
-                    .get()
-                    .awaitTask()
-
-                if (!snapshot.isEmpty) {
-                    val doc = snapshot.documents[0]
-                    val storedPassword = doc.getString("password") ?: "password123"
-                    if (storedPassword.isNotBlank() && storedPassword != password.trim()) {
-                        onResult(false, "Incorrect password. Please verify your employee password.", false)
-                        return@launch
-                    }
-
-                    val name = doc.getString("name") ?: "Employee"
-                    val designation = doc.getString("designation") ?: "Team Member"
-                    val deptName = doc.getString("department") ?: "OPERATIONS"
-                    val phone = doc.getString("phoneNumber") ?: "+91 98765 00000"
-
-                    val newEmp = EmployeeEntity(
-                        name = name,
-                        email = cleanEmail,
-                        password = storedPassword,
-                        phone = phone,
-                        designation = designation,
-                        department = try { Department.valueOf(deptName) } catch (_: Exception) { Department.OPERATIONS },
-                        role = EmployeeRole.DEVELOPER,
-                        status = EmployeeStatus.ACTIVE
-                    )
-                    employeeDao.insert(newEmp)
-
-                    // Also sync into Firebase Auth
-                    if (FirebaseAuthHelper.isFirebaseApiKeyValid()) {
-                        try {
-                            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                            auth.createUserWithEmailAndPassword(cleanEmail, password.trim()).awaitTask()
-                        } catch (_: Exception) { }
-                    }
-
-                    _isLoggedIn.value = true
-                    _userRole.value = "Employee"
-                    currentEmployeeName.value = name
-                    currentEmployeeRole.value = designation
-                    FirebaseRealtimeManager.setCurrentEmployeeName(name)
-
-                    BiometricHelper.saveUserLoginState(
-                        getApplication(),
-                        loggedIn = true,
-                        role = "Employee",
-                        phone = phone
-                    )
-                    userProfileDao.insertOrUpdateProfile(
-                        UserProfileEntity(
-                            id = 1L,
-                            name = name,
-                            role = designation,
-                            isOnboarded = true,
-                            email = cleanEmail,
-                            phone = phone,
-                            department = deptName
-                        )
-                    )
-                    onResult(true, null, false)
-                    return@launch
-                }
-            } catch (e: Exception) {
-                Log.w("MainViewModel", "Firestore employee lookup notice: ${e.message}")
-            }
-
-            // If employee was not pre-existing in local DB or remote Firestore, auto-register locally if valid inputs provided
-            if (cleanEmail.contains("@") && password.trim().length >= 4) {
-                val empName = cleanEmail.substringBefore("@").replace(".", " ")
-                    .split(" ")
-                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
-                val newEmp = EmployeeEntity(
-                    name = empName,
-                    email = cleanEmail,
-                    password = password.trim(),
-                    phone = "+91 98765 00000",
-                    designation = "Operations Specialist",
-                    department = Department.OPERATIONS,
-                    role = EmployeeRole.DEVELOPER,
-                    status = EmployeeStatus.ACTIVE
-                )
-                employeeDao.insert(newEmp)
-
-                _isLoggedIn.value = true
-                _userRole.value = "Employee"
-                currentEmployeeName.value = newEmp.name
-                currentEmployeeRole.value = newEmp.designation
-                FirebaseRealtimeManager.setCurrentEmployeeName(newEmp.name)
-
-                BiometricHelper.saveUserLoginState(
-                    getApplication(),
-                    loggedIn = true,
-                    role = "Employee",
-                    phone = newEmp.phone
-                )
-                userProfileDao.insertOrUpdateProfile(
-                    UserProfileEntity(
-                        id = 1L,
-                        name = newEmp.name,
-                        role = newEmp.designation,
-                        isOnboarded = true,
-                        email = cleanEmail,
-                        phone = newEmp.phone,
-                        department = "OPERATIONS"
-                    )
-                )
-                onResult(true, null, false)
-                return@launch
-            }
-
-            val rawError = fbResult.second ?: ""
-            val displayError = if (rawError == "API_KEY_INVALID" || rawError.contains("API key", ignoreCase = true) || rawError.contains("Recaptcha", ignoreCase = true)) {
-                "Unable to verify credentials online. Please check your email and password."
+                onResult(true, null, isAdmin, isPending)
             } else {
-                rawError.ifBlank { "Invalid email or password. Please verify your employee credentials." }
+                val errMessage = fbResult.second ?: "Invalid email or password. Please verify your credentials."
+                onResult(false, errMessage, false, false)
             }
-
-            onResult(false, displayError, false)
         }
     }
 
@@ -2269,6 +1953,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     "createdAt" to System.currentTimeMillis()
                 )
                 fs.collection("users").document(docId).set(data, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("employees").document(docId).set(data, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("users").document(insertedId.toString()).set(data, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("employees").document(insertedId.toString()).set(data, com.google.firebase.firestore.SetOptions.merge())
             } catch (e: Exception) {
                 Log.w("MainViewModel", "Firestore employee create sync: ${e.message}")
             }
@@ -2292,23 +1979,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val isFirebaseAuthLoading: StateFlow<Boolean> = FirebaseAuthHelper.isAuthenticating
 
     /**
-     * Signs in with Google using Credential Manager and Firebase Auth.
+     * Signs in with Google using Android Credential Manager and Firebase Auth.
      * Persists the user's profile and authentication metadata directly into Firestore.
      */
     fun loginWithGoogle(
         context: Context,
-        selectedRoleHint: String? = null,
-        onComplete: (isAdmin: Boolean, targetRoute: String) -> Unit
+        onComplete: (success: Boolean, isAdmin: Boolean, isPending: Boolean, errorMessage: String?) -> Unit
     ) {
         viewModelScope.launch {
-            val result = FirebaseAuthHelper.signInWithGoogle(
-                context = context,
-                targetRoleHint = selectedRoleHint
-            )
+            val result = FirebaseAuthHelper.signInWithGoogle(context = context)
             when (result) {
                 is GoogleSignInResult.Success -> {
-                    val isAdmin = result.isAdmin
-                    val resolvedRole = if (isAdmin) "MB Admin" else "Employee"
+                    val resolvedRole = if (result.isAdmin) "Admin" else "Employee"
                     _isLoggedIn.value = true
                     _userRole.value = resolvedRole
 
@@ -2330,7 +2012,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             role = result.user.designation,
                             isOnboarded = true,
                             email = result.user.email,
-                            phone = "+91 98765 43210",
+                            phone = "",
                             department = result.user.department
                         )
                     )
@@ -2338,18 +2020,74 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     notificationDao.insert(
                         NotificationEntity(
                             title = "🔐 Google Sign-in: ${result.user.displayName}",
-                            subtitle = "Authenticated with Firebase Auth & tracked in Firestore (${result.user.email}).",
+                            subtitle = "Authenticated with Firebase Auth (${result.user.email}).",
                             timeAgo = "Just now",
                             category = "attendance",
                             isRead = false
                         )
                     )
 
-                    val targetRoute = if (isAdmin) "manager" else "home"
-                    onComplete(isAdmin, targetRoute)
+                    onComplete(true, result.isAdmin, result.isPending, null)
                 }
                 is GoogleSignInResult.Error -> {
                     android.util.Log.w("MainViewModel", "Google Sign-in failed: ${result.message}")
+                    onComplete(false, false, false, result.message)
+                }
+            }
+        }
+    }
+
+    /**
+     * Fallback authentication for Google accounts on devices without a signed-in Google account in Android Settings.
+     */
+    fun loginWithGoogleEmailFallback(
+        email: String,
+        onComplete: (success: Boolean, isAdmin: Boolean, isPending: Boolean, errorMessage: String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            val result = FirebaseAuthHelper.authenticateWithGoogleEmailFallback(email)
+            when (result) {
+                is GoogleSignInResult.Success -> {
+                    val resolvedRole = if (result.isAdmin) "Admin" else "Employee"
+                    _isLoggedIn.value = true
+                    _userRole.value = resolvedRole
+
+                    BiometricHelper.saveUserLoginState(
+                        getApplication(),
+                        loggedIn = true,
+                        role = resolvedRole,
+                        phone = result.user.email
+                    )
+
+                    currentEmployeeName.value = result.user.displayName
+                    currentEmployeeRole.value = result.user.designation
+
+                    userProfileDao.insertOrUpdateProfile(
+                        UserProfileEntity(
+                            id = 1L,
+                            name = result.user.displayName,
+                            role = result.user.designation,
+                            isOnboarded = true,
+                            email = result.user.email,
+                            phone = "",
+                            department = result.user.department
+                        )
+                    )
+
+                    notificationDao.insert(
+                        NotificationEntity(
+                            title = "🔐 Google Sign-in: ${result.user.displayName}",
+                            subtitle = "Authenticated Google account (${result.user.email}).",
+                            timeAgo = "Just now",
+                            category = "attendance",
+                            isRead = false
+                        )
+                    )
+
+                    onComplete(true, result.isAdmin, result.isPending, null)
+                }
+                is GoogleSignInResult.Error -> {
+                    onComplete(false, false, false, result.message)
                 }
             }
         }
@@ -2385,7 +2123,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         role = designation,
                         isOnboarded = true,
                         email = email,
-                        phone = "+91 98765 43210",
+                        phone = "",
                         department = department
                     )
                 )
@@ -2394,133 +2132,104 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loginWithBiometrics(isAdmin: Boolean = false) {
-        val role = if (isAdmin) "MB Admin" else "Employee"
-        val phone = if (isAdmin) "+91 98111 22334" else "+91 98765 43210"
+    /**
+     * Unlocks an active verified session with Biometrics.
+     * Never generates mock users or bypasses authentication when no active session exists.
+     */
+    fun loginWithBiometrics(
+        onComplete: (success: Boolean, isAdmin: Boolean, isPending: Boolean, errorMessage: String?) -> Unit
+    ) {
+        val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+        val currentRecord = FirebaseAuthHelper.currentUserRecord.value
+        if (currentUser == null && currentRecord == null) {
+            onComplete(false, false, false, "No active session to unlock. Please sign in with email, phone, or Google.")
+            return
+        }
+
+        val record = currentRecord ?: FirebaseUserRecord(
+            uid = currentUser?.uid ?: "",
+            email = currentUser?.email ?: "",
+            displayName = currentUser?.displayName ?: "Employee"
+        )
+
+        val isAdmin = record.isAdmin
+        val isPending = record.isPending
+        val resolvedRole = if (isAdmin) "Admin" else "Employee"
+
         _isLoggedIn.value = true
-        _userRole.value = role
+        _userRole.value = resolvedRole
+        currentEmployeeName.value = record.displayName
+        currentEmployeeRole.value = record.designation
 
         BiometricHelper.saveUserLoginState(
             getApplication(),
             loggedIn = true,
-            role = role,
-            phone = phone
+            role = resolvedRole,
+            phone = record.email.ifBlank { record.uid }
         )
-
-        if (isAdmin) {
-            currentEmployeeName.value = "MB Admin"
-            currentEmployeeRole.value = "Administrator"
-        } else {
-            currentEmployeeName.value = "Rahul Sharma"
-            currentEmployeeRole.value = "Senior Android Developer"
-        }
-
-        viewModelScope.launch {
-            notificationDao.insert(
-                NotificationEntity(
-                    title = "⚡ Biometric Unlock Successful",
-                    subtitle = "Logged in as $role via Fingerprint / Biometric authentication.",
-                    timeAgo = "Just now",
-                    category = "attendance",
-                    isRead = false
-                )
-            )
-        }
-    }
-
-    /**
-     * Unlocks with Biometrics, checks the role stored in Firestore, and redirects accordingly.
-     */
-    fun loginWithBiometricsWithFirestore(
-        phoneNumber: String? = null,
-        selectedRoleHint: String? = null,
-        onComplete: (isAdmin: Boolean, targetRoute: String) -> Unit
-    ) {
-        val targetPhone = phoneNumber ?: if (selectedRoleHint == "MB Admin") "+91 98111 22334" else "+91 98765 43210"
-        viewModelScope.launch {
-            // Establish Firebase Auth Session seamlessly if valid API key is present
-            if (FirebaseAuthHelper.isFirebaseApiKeyValid()) {
-                try {
-                    val fbAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                    if (fbAuth.currentUser == null) {
-                        val authEmail = if (selectedRoleHint == "MB Admin") "admin@makingbrands.com" else "employee@makingbrands.com"
-                        fbAuth.signInWithEmailAndPassword(authEmail, "MbTraker2026!").awaitTask()
-                    }
-                } catch (_: Exception) {
-                }
-            }
-
-            val checkResult = FirestoreAuthProvider.checkUserRoleInFirestore(
-                identifier = targetPhone,
-                defaultRoleHint = selectedRoleHint
-            )
-            val isAdmin = checkResult.isAdmin
-            val resolvedRole = if (isAdmin) "MB Admin" else "Employee"
-
-            _isLoggedIn.value = true
-            _userRole.value = resolvedRole
-
-            BiometricHelper.saveUserLoginState(
-                getApplication(),
-                loggedIn = true,
-                role = resolvedRole,
-                phone = targetPhone
-            )
-
-            currentEmployeeName.value = checkResult.user.name
-            currentEmployeeRole.value = checkResult.user.designation
-
-            notificationDao.insert(
-                NotificationEntity(
-                    title = "⚡ Biometric Unlock + Firebase Auth Verified",
-                    subtitle = "Role '${checkResult.user.rawRole}' authenticated with Firebase. Redirecting to ${if (isAdmin) "Admin Dashboard" else "Employee Workspace"}.",
-                    timeAgo = "Just now",
-                    category = "attendance",
-                    isRead = false
-                )
-            )
-
-            onComplete(isAdmin, checkResult.targetRoute)
-        }
-    }
-
-    /**
-     * Allows updating the user's role in Firestore to test dynamic cloud role switching.
-     */
-    fun updateRoleInFirestore(newRole: String, onComplete: (Boolean) -> Unit = {}) {
-        viewModelScope.launch {
-            val targetPhone = currentAuthPhone()
-            val success = FirestoreAuthProvider.updateUserRoleInFirestore(targetPhone, newRole)
-            if (success) {
-                val isAdmin = newRole.contains("admin", ignoreCase = true)
-                val roleName = if (isAdmin) "MB Admin" else "Employee"
-                _userRole.value = roleName
-                BiometricHelper.saveUserLoginState(
-                    getApplication(),
-                    loggedIn = true,
-                    role = roleName,
-                    phone = targetPhone
-                )
-            }
-            onComplete(success)
-        }
-    }
-
-    private fun currentAuthPhone(): String {
-        val sessionPhone = _otpSession.value?.phoneNumber
-        if (!sessionPhone.isNullOrBlank()) return sessionPhone
-        val savedRole = _userRole.value
-        return if (savedRole == "MB Admin") "+91 98111 22334" else "+91 98765 43210"
+        onComplete(true, isAdmin, isPending, null)
     }
 
     fun logout() {
         FirebaseAuthHelper.signOut()
         FirestoreAuthProvider.logout(getApplication())
         BiometricHelper.clearLoginSession(getApplication())
+        com.example.util.AppPreferences.clearPersistedUserProfile(getApplication())
         _isLoggedIn.value = false
-        _otpSession.value = null
+        _userRole.value = ""
+        currentEmployeeName.value = ""
+        currentEmployeeRole.value = ""
         _isDashboardBiometricUnlocked.value = false
         _isChatBiometricUnlocked.value = false
+    }
+
+    /**
+     * Google Play Account Deletion Requirement:
+     * Permanently deletes user profile and data from Firestore, deletes Firebase Auth account,
+     * clears local databases and authentication tokens, and signs out.
+     */
+    fun deleteUserAccount(onComplete: (Boolean, String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val currentFbUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                val uid = currentFbUser?.uid ?: FirestoreAuthProvider.currentUser.value?.uid
+
+                // 1. Delete user record from Firestore if exists
+                if (!uid.isNullOrBlank()) {
+                    try {
+                        com.example.data.firebase.FirestoreDbProvider.getFirestore(getApplication())
+                            .collection("users")
+                            .document(uid)
+                            .delete()
+                    } catch (e: Exception) {
+                        Log.w("MainViewModel", "Could not delete firestore user document: ${e.message}")
+                    }
+                }
+
+                // 2. Delete Firebase Auth account
+                if (currentFbUser != null) {
+                    try {
+                        currentFbUser.delete()
+                    } catch (e: Exception) {
+                        Log.w("MainViewModel", "Could not delete Firebase Auth user: ${e.message}")
+                    }
+                }
+
+                // 3. Wipe all local Room database data
+                deleteAllEnterpriseData()
+
+                // 4. Clear all local preferences, biometrics, credentials
+                withContext(Dispatchers.Main) {
+                    logout()
+                    onComplete(true, null)
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Account deletion error: ${e.message}", e)
+                withContext(Dispatchers.Main) {
+                    onComplete(false, e.localizedMessage ?: "Account deletion failed")
+                }
+            }
+        }
     }
 
     init {
@@ -2544,7 +2253,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope,
             projectDao = projectDao,
             leaveDao = leaveDao,
-            shiftDao = shiftDao
+            shiftDao = shiftDao,
+            employeeDao = employeeDao
         )
 
         FirebaseRealtimeManager.onHolidaysUpdatedCallback = { list ->
@@ -3533,25 +3243,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         skills: List<String> = emptyList()
     ) {
         viewModelScope.launch {
-            employeeDao.insert(
-                EmployeeEntity(
-                    name = name,
-                    email = email,
-                    phone = phone,
-                    designation = designation,
-                    department = department,
-                    role = role,
-                    status = EmployeeStatus.ACTIVE,
-                    joiningDate = Date(),
-                    skills = skills
-                )
+            val emp = EmployeeEntity(
+                name = name,
+                email = email,
+                phone = phone,
+                designation = designation,
+                department = department,
+                role = role,
+                status = EmployeeStatus.ACTIVE,
+                joiningDate = Date(),
+                skills = skills
             )
+            val insertedId = employeeDao.insert(emp)
+            try {
+                val fs = com.example.data.firebase.FirestoreDbProvider.getFirestore(appContext)
+                val cleanEmail = email.trim().lowercase()
+                val docId = if (cleanEmail.contains("@")) cleanEmail.replace("@", "_").replace(".", "_") else "emp_$insertedId"
+                val payload = hashMapOf(
+                    "id" to insertedId,
+                    "name" to name.trim(),
+                    "email" to cleanEmail,
+                    "phone" to phone.trim(),
+                    "phoneNumber" to phone.trim(),
+                    "designation" to designation.trim(),
+                    "department" to department.name,
+                    "role" to if (role == EmployeeRole.ADMIN) "admin" else "employee",
+                    "status" to "ACTIVE",
+                    "createdAt" to System.currentTimeMillis()
+                )
+                fs.collection("employees").document(docId).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("users").document(docId).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("employees").document(insertedId.toString()).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("users").document(insertedId.toString()).set(payload, com.google.firebase.firestore.SetOptions.merge())
+            } catch (e: Exception) {
+                Log.w("MainViewModel", "Firestore addEmployee sync failed: ${e.message}")
+            }
         }
     }
 
     fun updateEmployee(employee: EmployeeEntity) {
         viewModelScope.launch {
             employeeDao.update(employee)
+            try {
+                val fs = com.example.data.firebase.FirestoreDbProvider.getFirestore(appContext)
+                val cleanEmail = employee.email.trim().lowercase()
+                val docId = if (cleanEmail.contains("@")) cleanEmail.replace("@", "_").replace(".", "_") else "emp_${employee.id}"
+                val payload = hashMapOf(
+                    "id" to employee.id,
+                    "name" to employee.name,
+                    "email" to cleanEmail,
+                    "phone" to employee.phone,
+                    "phoneNumber" to employee.phone,
+                    "designation" to employee.designation,
+                    "department" to employee.department.name,
+                    "role" to if (employee.role == EmployeeRole.ADMIN) "admin" else "employee",
+                    "status" to employee.status.name,
+                    "password" to employee.password,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+                fs.collection("employees").document(docId).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("users").document(docId).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("employees").document(employee.id.toString()).set(payload, com.google.firebase.firestore.SetOptions.merge())
+                fs.collection("users").document(employee.id.toString()).set(payload, com.google.firebase.firestore.SetOptions.merge())
+            } catch (e: Exception) {
+                Log.w("MainViewModel", "Firestore updateEmployee sync failed: ${e.message}")
+            }
         }
     }
 
@@ -3563,7 +3319,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             employeeDao.update(updated)
             try {
                 val fs = com.example.data.firebase.FirestoreDbProvider.getFirestore(appContext)
+                val cleanEmail = target.email.trim().lowercase()
+                val docId = if (cleanEmail.contains("@")) cleanEmail.replace("@", "_").replace(".", "_") else "emp_${target.id}"
                 fs.collection("employees").document(target.id.toString()).update("status", "ACTIVE")
+                fs.collection("users").document(target.id.toString()).update("status", "ACTIVE")
+                fs.collection("employees").document(docId).update("status", "ACTIVE")
+                fs.collection("users").document(docId).update("status", "ACTIVE")
             } catch (_: Exception) {}
             addNotification(
                 title = "🎉 Account Approved by Admin!",

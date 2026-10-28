@@ -409,6 +409,7 @@ fun ChatRoomScreen(
     var recordingDurationSeconds by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    var showAudioDisclosure by remember { mutableStateOf(false) }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -424,6 +425,24 @@ fun ChatRoomScreen(
         }
     }
 
+    if (showAudioDisclosure) {
+        com.example.ui.components.PermissionDisclosureDialog(
+            icon = Icons.Default.Mic,
+            iconTint = BrandBlue,
+            title = "Microphone Access Required",
+            featureName = "Team Chat Voice Note",
+            dataAccessed = "Microphone audio stream during voice note recording",
+            purposeExplanation = "Allows you to record and send voice audio messages directly to your colleagues in this workplace chat channel.",
+            backgroundDisclosure = "Microphone is activated ONLY while you are actively recording. MB EM NEVER listens or records audio in the background.",
+            transmissionDisclosure = "Recorded audio clips are encrypted and shared exclusively with members of this chat channel. They are never shared with external services.",
+            onDismiss = { showAudioDisclosure = false },
+            onAffirmativeConsent = {
+                showAudioDisclosure = false
+                audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+        )
+    }
+
     val requestVoiceRecording = {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -436,7 +455,7 @@ fun ChatRoomScreen(
                 recordingDurationSeconds = 0
             }
         } else {
-            audioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            showAudioDisclosure = true
         }
     }
 

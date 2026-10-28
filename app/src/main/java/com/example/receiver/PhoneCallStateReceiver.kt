@@ -11,6 +11,7 @@ import com.example.data.model.NotificationEntity
 import com.example.util.NotificationHelper
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.remoteconfig.remoteConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,43 +30,9 @@ class PhoneCallStateReceiver : BroadcastReceiver() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent == null) return
-        try {
-            val action = intent.action ?: return
-
-            when (action) {
-                Intent.ACTION_NEW_OUTGOING_CALL -> {
-                    val outgoingNumber = try {
-                        intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
-                            ?: intent.getStringExtra("android.intent.extra.PHONE_NUMBER")
-                            ?: ""
-                    } catch (se: SecurityException) {
-                        Log.w(TAG, "SecurityException reading outgoing number: ${se.message}")
-                        ""
-                    }
-                    handleOutgoingCallInitiated(outgoingNumber)
-                }
-                TelephonyManager.ACTION_PHONE_STATE_CHANGED,
-                "android.intent.action.PHONE_STATE" -> {
-                    val stateStr = try {
-                        intent.getStringExtra(TelephonyManager.EXTRA_STATE)
-                    } catch (se: SecurityException) {
-                        Log.w(TAG, "SecurityException reading phone state: ${se.message}")
-                        null
-                    } ?: return
-
-                    val incomingNumber = try {
-                        intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-                    } catch (se: SecurityException) {
-                        Log.w(TAG, "SecurityException reading incoming number: ${se.message}")
-                        null
-                    }
-                    handlePhoneStateChanged(context, stateStr, incomingNumber)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Unhandled error in PhoneCallStateReceiver: ${e.message}", e)
-        }
+        // Disabled per Google Play Policy: Enterprise and CRM applications must not intercept
+        // telephony state or record calls in the background. Calls are initiated compliantly
+        // via user-directed Intent.ACTION_DIAL, and call notes are logged explicitly by the user.
     }
 
     private fun handleOutgoingCallInitiated(number: String) {
@@ -268,40 +235,10 @@ class PhoneCallStateReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun queryDeviceContacts(context: Context, phoneNumber: String): String? {
-        if (phoneNumber.isBlank()) return null
-        return try {
-            val uri = android.net.Uri.withAppendedPath(
-                android.provider.ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
-                android.net.Uri.encode(phoneNumber)
-            )
-            val projection = arrayOf(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME)
-            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(android.provider.ContactsContract.PhoneLookup.DISPLAY_NAME)
-                    if (nameIndex != -1) {
-                        cursor.getString(nameIndex)
-                    } else null
-                } else null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error querying device contacts: ${e.message}", e)
-            null
-        }
-    }
-
     private suspend fun resolveContactName(context: Context, db: AppDatabase, phoneNumber: String): String {
         val cleanTarget = cleanDigits(phoneNumber)
 
-        // 1. Check in local device phone book / SIM first
-        try {
-            val deviceContactName = queryDeviceContacts(context, phoneNumber)
-            if (!deviceContactName.isNullOrBlank()) {
-                return "$deviceContactName (Phone Book)"
-            }
-        } catch (_: Exception) {}
-
-        // 2. Check in CRM Leads - STRICT MATCH to avoid wrong details
+        // 1. Check in CRM Leads - match authorized leads
         try {
             val leads = db.leadDao().getAllLeadsDirectly()
             for (lead in leads) {
@@ -311,7 +248,7 @@ class PhoneCallStateReceiver : BroadcastReceiver() {
             }
         } catch (_: Exception) {}
 
-        // Check in Organization Employees - STRICT MATCH to avoid wrong details
+        // 2. Check in Organization Employees - match verified company team members
         try {
             val employees = db.employeeDao().getAllEmployeesDirectly()
             for (emp in employees) {
@@ -321,47 +258,11 @@ class PhoneCallStateReceiver : BroadcastReceiver() {
             }
         } catch (_: Exception) {}
 
-        // 3. Truecaller AI Internet Directory Lookup!
-        try {
-            val truecallerResult = performOnlineTruecallerLookup(phoneNumber)
-            if (!truecallerResult.isNullOrBlank()) {
-                return truecallerResult
-            }
-        } catch (_: Exception) {}
-
-        // Fallback formatted identifier
+        // Fallback sanitized identifier
         return if (phoneNumber.isNotBlank()) {
-            "Client ($phoneNumber)"
+            "Client (${phoneNumber.takeLast(4).padStart(phoneNumber.length, '*')})"
         } else {
-            "Unknown Caller"
-        }
-    }
-
-    private suspend fun performOnlineTruecallerLookup(phoneNumber: String): String? {
-        if (phoneNumber.isBlank()) return null
-        return try {
-            val generativeModel = com.google.firebase.Firebase.ai.generativeModel(
-                modelName = "gemini-2.5-flash",
-                generationConfig = com.google.firebase.ai.type.generationConfig {
-                    temperature = 0.2f
-                }
-            )
-            val prompt = """
-                You are a Truecaller and online business directory lookup system.
-                Identify details for this phone number: "$phoneNumber".
-                Identify likely owner name, company name, city/state, or identify if it is a spam/sales caller.
-                Return ONLY a formatted string in this format: "Owner Name (Company/Location)" or "Spam: Caller Type" or "Business Name".
-                Do not explain. Return "Unknown Caller" if you have no record.
-            """.trimIndent()
-            val response = generativeModel.generateContent(prompt)
-            val text = response.text?.trim() ?: ""
-            if (text.isNotBlank() && !text.contains("Unknown Caller", ignoreCase = true)) {
-                text
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
+            "Contact"
         }
     }
 

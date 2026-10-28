@@ -1,15 +1,22 @@
 # Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
 
-# Preserve line numbers for stack traces
--keepattributes SourceFile,LineNumberTable
+# --- Performance & Optimization Passes ---
+-optimizationpasses 5
+-allowaccessmodification
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+
+# Preserve line numbers for debugging and stack traces
+-keepattributes SourceFile,LineNumberTable,Signature,InnerClasses,EnclosingMethod
 -renamesourcefileattribute SourceFile
 
-# --- Firebase Rules ---
+# --- Firebase & Google Play Services Rules ---
 -keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
 
-# --- Room Rules ---
+# --- Room Database Rules ---
 -keep class * extends androidx.room.RoomDatabase
 -keep class * extends androidx.room.Entity
 -keep class * extends androidx.room.Dao
@@ -25,8 +32,19 @@
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
-# --- General rules to keep annotations and JSON serialization ---
--keepattributes *Annotation*
+# --- Jetpack Compose & Kotlinx Serialization ---
+-keepattributes *Annotation*,Signature,EnclosingMethod
+-keep class kotlinx.serialization.** { *; }
+-keepnames @kotlinx.serialization.Serializable class * { *; }
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    <init>(...);
+}
 
-# Keep classes that are used for serialization
--keepnames class com.example.data.model.** { *; }
+# --- App Models & DTOs ---
+-keep class com.example.data.model.** { *; }
+-keep class com.example.ui.screens.** { *; }
+
+# --- Coroutines Optimizations & Metadata ---
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory { *; }
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler { *; }
+-keepclassmembers class * implements kotlinx.coroutines.CoroutineExceptionHandler { *; }

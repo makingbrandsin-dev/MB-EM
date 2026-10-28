@@ -9,8 +9,14 @@ interface AttendanceDao {
     @Query("SELECT * FROM attendance_records ORDER BY id DESC LIMIT 1")
     fun getLatestAttendance(): Flow<AttendanceRecord?>
 
+    @Query("SELECT * FROM attendance_records WHERE LOWER(employeeName) = LOWER(:employeeName) ORDER BY id DESC LIMIT 1")
+    fun getLatestAttendanceForEmployee(employeeName: String): Flow<AttendanceRecord?>
+
     @Query("SELECT * FROM attendance_records ORDER BY id DESC")
     fun getAllAttendance(): Flow<List<AttendanceRecord>>
+
+    @Query("SELECT * FROM attendance_records WHERE LOWER(employeeName) = LOWER(:employeeName) ORDER BY id DESC")
+    fun getAllAttendanceForEmployee(employeeName: String): Flow<List<AttendanceRecord>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(record: AttendanceRecord): Long

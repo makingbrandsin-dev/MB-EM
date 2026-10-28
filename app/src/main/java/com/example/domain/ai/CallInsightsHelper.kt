@@ -8,6 +8,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.content.Context
 import android.util.Log
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.remoteconfig.remoteConfig
 
 object CallInsightsHelper {
     private const val TAG = "CallInsightsHelper"
@@ -50,7 +53,14 @@ object CallInsightsHelper {
     }
 
     private suspend fun callGeminiForInsights(prompt: String): String {
-        // Implementation of Retrofit call as per gemini-api skill
-        return "{\"isLead\": true, \"insight\": \"Client showed interest in the website package\", \"leadStatus\": \"Qualified\"}"
+        return try {
+            val modelName = Firebase.remoteConfig.getString("milo_gemini_model")
+            val generativeModel = Firebase.ai.generativeModel(modelName = modelName)
+            val response = generativeModel.generateContent(prompt)
+            response.text ?: "{\"isLead\": false, \"insight\": \"No response from AI\", \"leadStatus\": \"New\"}"
+        } catch (e: Exception) {
+            Log.e(TAG, "AI call failed: ${e.message}")
+            "{\"isLead\": false, \"insight\": \"AI call error\", \"leadStatus\": \"New\"}"
+        }
     }
 }

@@ -858,7 +858,7 @@ fun AddDailyTaskDialog(
     var estimatedTimeNeeded by remember { mutableStateOf("4 Hours") }
 
     val priorities = listOf("High", "Medium", "Low")
-    val projectOptions = listOf("Website Revamp", "MB Traker App", "Client Acquisition", "Operations", "General")
+    val projectOptions = listOf("Website Revamp", "MB EM App", "Client Acquisition", "Operations", "General")
     val timeOptions = listOf("1 Hour", "2 Hours", "4 Hours", "1 Day", "2 Days", "1 Week")
 
     androidx.compose.ui.window.Dialog(

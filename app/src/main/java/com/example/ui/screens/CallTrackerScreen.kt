@@ -240,10 +240,10 @@ fun CallTrackerScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = if (isAutoCallRecordingEnabled) Color(0xFF16A34A) else Color(0xFF64748B)
+                                        color = Color(0xFF2563EB)
                                     ) {
                                         Text(
-                                            if (isAutoCallRecordingEnabled) "ON" else "OFF",
+                                            "COMPLIANT",
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = Color.White,
@@ -252,48 +252,30 @@ fun CallTrackerScreen(
                                     }
                                 }
                                 Text(
-                                    if (isAutoCallRecordingEnabled)
-                                        "Auto-records in-call audio & logs with CRM clients"
-                                    else
-                                        "Call audio recording is turned OFF",
+                                    "Calls initiated via system dialer (Intent.ACTION_DIAL). Zero restricted permissions.",
                                     fontSize = 11.sp,
                                     color = TextSecondary
                                 )
                             }
                         }
 
-                        Switch(
-                            checked = isAutoCallRecordingEnabled,
-                            onCheckedChange = { isChecked ->
-                                viewModel.setAutoCallRecordingEnabled(isChecked)
-                                Toast.makeText(
-                                    context,
-                                    if (isChecked) "Auto Call Recording turned ON" else "Auto Call Recording turned OFF",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = Color(0xFF16A34A)
-                            )
-                        )
+                        Button(
+                            onClick = { showQuickLogDialog = true },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = BrandBlue)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Log Call", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
-            // 1. Telephony BroadcastReceiver Live Status Banner
+            // 1. Google Play-Compliant CRM Dialer Banner
             item {
-                TelephonyStatusCard(
-                    onSimulateClick = {
-                        PhoneCallStateReceiver.simulateTestCallEvent(
-                            context = context,
-                            contactName = "Vikram Malhotra (Apex Tech)",
-                            phoneNumber = "+91 98112 34567",
-                            callType = "Incoming",
-                            durationSeconds = 165
-                        )
-                        Toast.makeText(context, "Simulated incoming call logged successfully", Toast.LENGTH_SHORT).show()
-                    }
+                CrmDialerStatusCard(
+                    onLogCallClick = { showQuickLogDialog = true }
                 )
             }
 
@@ -526,15 +508,15 @@ fun CallTrackerScreen(
 }
 
 /**
- * Live Telephony & BroadcastReceiver Status Indicator
+ * Google Play Policy Compliant CRM Dialer & Activity Logger Status Card
  */
 @Composable
-private fun TelephonyStatusCard(onSimulateClick: () -> Unit) {
+private fun CrmDialerStatusCard(onLogCallClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFFF0FDF4),
-        border = BorderStroke(1.dp, Color(0xFFBBF7D0))
+        color = Color(0xFFEFF6FF),
+        border = BorderStroke(1.dp, Color(0xFFBFDBFE))
     ) {
         Row(
             modifier = Modifier
@@ -550,39 +532,39 @@ private fun TelephonyStatusCard(onSimulateClick: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(10.dp)
-                        .background(Color(0xFF16A34A), CircleShape)
+                        .background(Color(0xFF2563EB), CircleShape)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Text(
-                        "Telephony Auto-Logger Active",
+                        "Google Play Compliant Dialer Mode",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF15803D)
+                        color = Color(0xFF1E40AF)
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        "BroadcastReceiver auto-records incoming & outgoing SIM calls",
+                        "Client calls launched via system dialer (ACTION_DIAL). Zero restricted telephony/call-log permissions.",
                         fontSize = 11.sp,
-                        color = Color(0xFF166534),
+                        color = Color(0xFF1E3A8A),
                         lineHeight = 15.sp
                     )
                 }
             }
 
             FilledTonalButton(
-                onClick = onSimulateClick,
+                onClick = onLogCallClick,
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color(0xFFDCFCE7),
-                    contentColor = Color(0xFF15803D)
+                    containerColor = Color(0xFFDBEAFE),
+                    contentColor = Color(0xFF1D4ED8)
                 ),
                 shape = RoundedCornerShape(10.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.height(34.dp)
             ) {
-                Icon(Icons.Default.PhoneCallback, contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.AddComment, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Test Event", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Log Activity", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

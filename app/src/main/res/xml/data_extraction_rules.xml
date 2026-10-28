@@ -1,19 +1,34 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ (API 31+) Data Extraction Rules.
+    Protects user privacy and enterprise confidentiality by excluding authentication credentials,
+    biometric settings, offline database caches, and session tokens from cloud backup and device-to-device transfers.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Exclude local Room database files to avoid leaking employee records, chats, and leads to personal Google Drive -->
+        <exclude domain="database" path="app_database" />
+        <exclude domain="database" path="app_database-shm" />
+        <exclude domain="database" path="app_database-wal" />
+
+        <!-- Exclude sensitive authentication tokens, biometrics, and user credentials -->
+        <exclude domain="sharedpref" path="app_biometric_prefs.xml" />
+        <exclude domain="sharedpref" path="auth_session_prefs.xml" />
+        <exclude domain="sharedpref" path="mb_auth_prefs.xml" />
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.xml" />
+
+        <!-- Exclude internal cache and temporary files -->
+        <exclude domain="root" path="no_backup" />
     </cloud-backup>
-    <!--
+
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Do not transfer authentication tokens or active sessions to another device -->
+        <exclude domain="sharedpref" path="app_biometric_prefs.xml" />
+        <exclude domain="sharedpref" path="auth_session_prefs.xml" />
+        <exclude domain="sharedpref" path="mb_auth_prefs.xml" />
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.xml" />
+        <exclude domain="database" path="app_database" />
+        <exclude domain="database" path="app_database-shm" />
+        <exclude domain="database" path="app_database-wal" />
     </device-transfer>
-    -->
 </data-extraction-rules>

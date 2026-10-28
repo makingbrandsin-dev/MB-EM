@@ -13,6 +13,7 @@ import com.example.data.model.ProjectEntity
 import com.example.data.model.TaskEntity
 import com.example.domain.milo.MiloState
 import com.example.ui.screens.MainViewModel
+import com.example.util.MiloHaptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -25,6 +26,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.remoteconfig.remoteConfig
 
 enum class MiloActionType {
     NONE,
@@ -68,16 +74,7 @@ data class MiloOperationResult(
 object MiloLiveCopilotEngine {
 
     private const val TAG = "MiloCopilotEngine"
-    private const val GEMINI_MODEL = "gemini-3.5-flash"
-    private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:generateContent"
-
-    private val httpClient by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
+    private fun getGeminiModel(): String = Firebase.remoteConfig.getString("milo_gemini_model")
 
     /**
      * Executes an operation query from Ask Milo or Milo Sheet in real time.
@@ -99,6 +96,46 @@ object MiloLiveCopilotEngine {
     ): MiloOperationResult = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         val lower = trimmed.lowercase(Locale.ROOT)
+
+        // 0. TEMPLATE OR SALES PITCH HANDLING
+        if (lower.contains("sales pitch") || lower.contains("proposal template") || lower.contains("drafting template")) {
+            val targetLead = findMatchingLead(trimmed, leads) ?: leads.firstOrNull()
+            val clientName = targetLead?.name ?: "Executive Client"
+            val phone = targetLead?.phone ?: ""
+            return@withContext MiloOperationResult(
+                speech = "🦁 Ready! Customized sales pitch proposal loaded for " + clientName,
+                markdownResponse = "### 🦁 Executive Proposal Draft\n\n**Client:** " + clientName + "\n\n---\n" + trimmed + "\n\n---\n\n💡 *Tap below to send this directly to the client via WhatsApp or copy.*",
+                miloState = MiloState.SUCCESS,
+                actionType = MiloActionType.QUOTATION,
+                actionLabel = "📱 Send Pitch on WhatsApp",
+                actionPayload = trimmed,
+                targetPhone = phone,
+                targetClientName = clientName
+            )
+        }
+
+        // 0.5. SUMMARIZE ACTIVE LEADS AND TASKS
+        if (lower.contains("summarize my active leads and tasks") || lower.contains("summarize today")) {
+            val pendingTasks = tasks.filter { !it.isCompleted }
+            val activeLeads = leads.filter { !it.stage.equals("Won", true) && !it.stage.equals("Lost", true) }
+            val sb = StringBuilder()
+            sb.append("### 🦁 Milo Executive Daily Briefing\n\n")
+            sb.append("**Pending Tasks (" + pendingTasks.size + "):**\n")
+            pendingTasks.take(4).forEach { t ->
+                sb.append("• " + t.title + " (Due: " + t.dueDate + ", " + t.priority + ")\n")
+            }
+            sb.append("\n**Active CRM Leads (" + activeLeads.size + "):**\n")
+            activeLeads.take(4).forEach { l ->
+                sb.append("• " + l.name + " (" + l.company + ") — " + l.stage + " [₹" + l.potentialValue + "]\n")
+            }
+            return@withContext MiloOperationResult(
+                speech = "🦁 " + pendingTasks.size + " pending tasks and " + activeLeads.size + " active leads in your queue today.",
+                markdownResponse = sb.toString(),
+                miloState = MiloState.SUCCESS,
+                actionType = MiloActionType.VIEW_TASKS,
+                actionLabel = "View Pending Tasks"
+            )
+        }
 
         // 1. INVOICE GENERATION
         if (lower.contains("invoice") || lower.contains("bill") || lower.contains("create invoice") || lower.contains("generate invoice")) {
@@ -122,7 +159,7 @@ object MiloLiveCopilotEngine {
 
         // 5. TASKS REMINDER & MUTATIONS
         if (lower.startsWith("create task") || lower.startsWith("add task") || lower.contains("schedule task")) {
-            return@withContext createLiveTask(trimmed, employeeName, viewModel)
+            return@withContext createLiveTask(trimmed, context, employeeName, viewModel)
         }
 
         if (lower.contains("task") || lower.contains("pending works") || lower.contains("to do") || lower.contains("pending")) {
@@ -162,24 +199,20 @@ object MiloLiveCopilotEngine {
             return@withContext generateHolidaysAndLeavesReport(holidays, leaves, employeeName)
         }
 
-        // 10. ADVANCED REASONING VIA GEMINI 3.5 FLASH (LIVE REST API)
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey.isNotBlank()) {
-            val geminiResult = callGeminiLiveApi(
-                query = trimmed,
-                apiKey = apiKey,
-                employeeName = employeeName,
-                employeeRole = employeeRole,
-                projects = projects,
-                tasks = tasks,
-                leads = leads,
-                notifications = notifications,
-                attendance = attendance
-            )
-            if (geminiResult != null) {
-                com.example.data.datastore.OfflineDataCacheStore.cacheMiloVoiceInteraction(context, query, geminiResult.speech)
-                return@withContext geminiResult
-            }
+        // 10. ADVANCED REASONING VIA GEMINI 1.5 FLASH (SECURE FIREBASE AI)
+        val geminiResult = callGeminiLiveApi(
+            query = trimmed,
+            employeeName = employeeName,
+            employeeRole = employeeRole,
+            projects = projects,
+            tasks = tasks,
+            leads = leads,
+            notifications = notifications,
+            attendance = attendance
+        )
+        if (geminiResult != null) {
+            com.example.data.datastore.OfflineDataCacheStore.cacheMiloVoiceInteraction(context, query, geminiResult.speech)
+            return@withContext geminiResult
         }
 
         // 11. ROBUST DOMAIN FALLBACK (Backed by DataStore Preferences Cache)
@@ -599,25 +632,33 @@ $draftText
         )
     }
 
-    private fun createLiveTask(query: String, employeeName: String, viewModel: MainViewModel?): MiloOperationResult {
-        val title = query.replace(Regex("(?i)^(create task|add task|schedule task|remind me to)"), "").trim().removePrefix(":")
-        val cleanTitle = title.ifBlank { "Priority Task Follow-up" }
+    private fun createLiveTask(query: String, context: Context, employeeName: String, viewModel: MainViewModel?): MiloOperationResult {
+        // Regex to extract title and optional due date
+        val titleMatcher = Regex("(?i)^(create task|add task|schedule task|remind me to) (.*?)( by .*)?$")
+        val match = titleMatcher.find(query)
+        
+        val titlePart = match?.groupValues?.get(2)?.trim() ?: query.replace(Regex("(?i)^(create task|add task|schedule task|remind me to)"), "").trim().removePrefix(":")
+        val dueDatePart = match?.groupValues?.get(3)?.trim()?.removePrefix("by ") ?: "Today"
+        
+        val cleanTitle = titlePart.ifBlank { "Priority Task Follow-up" }
 
         viewModel?.addTask(
             title = cleanTitle,
             projectName = "Client Operations",
             priority = "High",
-            dueDate = "Today",
+            dueDate = dueDatePart,
             category = "Work",
             estimatedTimeNeeded = "2 Hours",
             assignee = employeeName
         )
 
+        MiloHaptics.performSuccess(context)
+
         val markdown = """
 ### 🦁 Task Scheduled & Locked In Live!
 **Task:** $cleanTitle
 **Priority:** 🔴 High
-**Due:** 📅 Today
+**Due:** 📅 $dueDatePart
 **Assignee:** $employeeName
 **Database Sync:** ✅ Synced to Room DB & Firestore Realtime
 
@@ -625,7 +666,7 @@ Milo will monitor this task and alert you before the shift concludes!
         """.trimIndent()
 
         return MiloOperationResult(
-            speech = "🦁 \"Task '$cleanTitle' has been locked into your live queue!\"",
+            speech = "🦁 \"Task '$cleanTitle' due $dueDatePart has been locked into your live queue!\"",
             markdownResponse = markdown,
             miloState = MiloState.SUCCESS,
             actionType = MiloActionType.VIEW_TASKS,
@@ -862,7 +903,6 @@ Your work timesheet is automatically tracked and synchronized with the company c
     // =========================================================================
     private suspend fun callGeminiLiveApi(
         query: String,
-        apiKey: String,
         employeeName: String,
         employeeRole: String,
         projects: List<ProjectEntity>,
@@ -871,6 +911,22 @@ Your work timesheet is automatically tracked and synchronized with the company c
         notifications: List<NotificationEntity>,
         attendance: AttendanceRecord?
     ): MiloOperationResult? {
+        // Step 5: Require authentication for company-specific AI features
+        val isAuthed = try {
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null ||
+            com.example.data.auth.FirebaseAuthHelper.isUserSignedIn()
+        } catch (_: Exception) {
+            false
+        }
+        if (!isAuthed) {
+            return MiloOperationResult(
+                speech = "🦁 \"Please sign in to access live AI intelligence!\"",
+                markdownResponse = "### 🔐 Authentication Required\nAccess to Milo AI Smart Copilot is restricted to authenticated Making Brands employees. Please sign in through the login screen.",
+                miloState = MiloState.IDLE,
+                isSuccess = false
+            )
+        }
+
         return try {
             val systemPrompt = """
                 You are Milo, the energetic, intelligent 20X AI Smart Copilot and lion mascot for Making Brands (a premier digital growth, software, branding, and performance marketing agency).
@@ -890,62 +946,28 @@ Your work timesheet is automatically tracked and synchronized with the company c
                 4. Help the employee hit their daily targets with 20X efficiency!
             """.trimIndent()
 
-            val requestJson = JSONObject().apply {
-                val contentsArray = JSONArray().apply {
-                    val turnObj = JSONObject().apply {
-                        val partsArray = JSONArray().apply {
-                            put(JSONObject().put("text", query))
-                        }
-                        put("parts", partsArray)
-                    }
-                    put(turnObj)
+            val generativeModel = Firebase.ai.generativeModel(
+                modelName = getGeminiModel(),
+                systemInstruction = content { text(systemPrompt) },
+                generationConfig = generationConfig {
+                    temperature = 0.7f
+                    maxOutputTokens = 1024
                 }
-                put("contents", contentsArray)
+            )
 
-                val systemInstructionObj = JSONObject().apply {
-                    val sysParts = JSONArray().apply {
-                        put(JSONObject().put("text", systemPrompt))
-                    }
-                    put("parts", sysParts)
-                }
-                put("systemInstruction", systemInstructionObj)
+            val response = generativeModel.generateContent(query)
+            val answerText = response.text
 
-                val configObj = JSONObject().apply {
-                    put("temperature", 0.7)
-                }
-                put("generationConfig", configObj)
-            }
-
-            val requestBody = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url("$BASE_URL?key=$apiKey")
-                .post(requestBody)
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBodyStr = response.body?.string() ?: ""
-                val responseJson = JSONObject(responseBodyStr)
-                val candidates = responseJson.optJSONArray("candidates")
-                val firstCandidate = candidates?.optJSONObject(0)
-                val contentObj = firstCandidate?.optJSONObject("content")
-                val parts = contentObj?.optJSONArray("parts")
-                val answerText = parts?.optJSONObject(0)?.optString("text")
-
-                if (!answerText.isNullOrBlank()) {
-                    MiloOperationResult(
-                        speech = "🦁 \"Here is your tailored strategy and answer!\"",
-                        markdownResponse = answerText,
-                        miloState = MiloState.WORKING,
-                        actionType = MiloActionType.NONE
-                    )
-                } else null
-            } else {
-                Log.w(TAG, "Gemini API non-200: ${response.code} - ${response.message}")
-                null
-            }
+            if (!answerText.isNullOrBlank()) {
+                MiloOperationResult(
+                    speech = "🦁 \"Here is your tailored strategy and answer!\"",
+                    markdownResponse = answerText,
+                    miloState = MiloState.WORKING,
+                    actionType = MiloActionType.NONE
+                )
+            } else null
         } catch (e: Exception) {
-            Log.w(TAG, "Gemini API call failed: ${e.message}")
+            Log.w(TAG, "Firebase AI call failed: ${e.message}")
             null
         }
     }

@@ -1,8 +1,317 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Default deny all unmapped documents
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@\\.]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Server-controlled Admin verification: checks /admins/{uid} or trusted admin emails
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "makingbrands.in@gmail.com" ||
+        request.auth.token.email == "admin@makingbrands.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")
+      );
+    }
+
+    // Retrieves user's assigned organization ID from their user record
+    function getUserOrgId() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.orgId
+        : "org_default";
+    }
+
+    // Helper validation functions
+    function isValidUser(data) {
+      return data.email is string &&
+             data.name is string &&
+             (!('role' in data) || data.role is string) &&
+             (!('status' in data) || data.status is string);
+    }
+
+    function isValidAttendance(data) {
+      return data.userId is string &&
+             (!('status' in data) || data.status is string);
+    }
+
+    function isValidTask(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             (!('status' in data) || data.status is string);
+    }
+
+    function isValidLead(data) {
+      return data.title is string && data.title.size() <= 200;
+    }
+
+    function isValidProject(data) {
+      return data.name is string && data.name.size() <= 200;
+    }
+
+    function isValidChatMessage(data) {
+      return data.channelId is string &&
+             data.senderName is string;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Users & Employees
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+         (!('role' in incoming()) || incoming().role == "employee") &&
+         (!('status' in incoming()) || incoming().status == "ACTIVE" || incoming().status == "PENDING"))
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == userId &&
+         incoming().role == existing().role &&
+         incoming().email == existing().email &&
+         (!('status' in existing()) || incoming().status == existing().status) &&
+         (!('orgId' in existing()) || incoming().orgId == existing().orgId))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == employeeId &&
+         (!('role' in incoming()) || incoming().role == "employee"))
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.uid == employeeId &&
+         incoming().role == existing().role)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 2. Admins collection (server-managed)
+    match /admins/{adminId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 3. Organizations
+    match /organizations/{orgId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 4. Attendance Records & Clock Events
+    match /attendance_records/{recordId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidAttendance(incoming()) && (
+        isAdmin() ||
+        incoming().userId == request.auth.uid ||
+        incoming().userId == request.auth.token.email ||
+        request.auth.token.email != null
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (existing().userId == request.auth.uid &&
+         incoming().userId == existing().userId)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /clock_events/{eventId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        incoming().userId == request.auth.uid
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // 5. Tasks
+    match /tasks/{taskId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidTask(incoming());
+      allow update: if isSignedIn() && isValidTask(incoming()) && (
+        isAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'isCompleted', 'updatedAt']) ||
+        existing().assignee == request.auth.token.email ||
+        existing().assignee == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 6. Projects
+    match /projects/{projectId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidProject(incoming());
+      allow update: if isSignedIn() && isValidProject(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 7. Leads
+    match /leads/{leadId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidLead(incoming());
+      allow update: if isSignedIn() && isValidLead(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // 8. Chat Messages & Team Chat
+    match /chat_messages/{messageId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidChatMessage(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'readBy', 'readAt', 'reactionsJson', 'audioPath'])
+      );
+      allow delete: if isAdmin();
+
+      match /reactions/{reactionId} {
+        allow get, list: if isSignedIn();
+        allow create, update, delete: if isSignedIn();
+      }
+    }
+
+    match /team_chat/{messageId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidChatMessage(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'readBy', 'readAt', 'reactionsJson', 'audioPath'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 9. Leave Applications
+    match /leave_applications/{leaveId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        incoming().userId == request.auth.uid ||
+        incoming().userId == request.auth.token.email
+      );
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (existing().userId == request.auth.uid &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['leaveType', 'startDate', 'endDate']))
+      );
+      allow delete: if isAdmin();
+    }
+
+    // 10. Holidays
+    match /holidays/{holidayId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 11. Shift Schedules
+    match /shift_schedules/{shiftId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 12. Invoices & Quotations
+    match /invoices/{invoiceId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /quotations/{quotationId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 13. App Configuration & Branding
+    match /app_config/{configId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /system_settings/{settingId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 14. MIO Videos
+    match /mio_videos/{videoId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /milo_videos/{videoId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 15. Activity Feed
+    match /activity_feed_items/{itemId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // 16. Broadcasts
+    match /admin_broadcasts/{broadcastId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /PushBroadcasts/{broadcastId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /push_broadcasts/{broadcastId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 17. FCM Tokens & Devices
+    match /fcm_tokens/{tokenId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    match /fcm_devices/{deviceId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    // 18. User Activities
+    match /user_activities/{activityId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // 19. App Updates
+    match /app_updates/{updateId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

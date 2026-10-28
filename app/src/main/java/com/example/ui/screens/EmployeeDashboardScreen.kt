@@ -55,6 +55,7 @@ import com.example.ui.components.DynamicActivityFeedSection
 import com.example.ui.components.OngoingProjectsTasksOverviewCard
 import com.example.ui.components.TeamWorkloadChartCard
 import com.example.ui.components.RechartsTrendDashboardWidget
+import com.example.ui.components.RechartsTaskPieChartWidget
 import com.example.ui.components.StatusTag
 import com.example.ui.components.PulsingStatusDot
 import com.example.ui.components.formatLiveSeconds
@@ -118,6 +119,7 @@ fun EmployeeDashboardScreen(
     var showReviewsQrDialog by remember { mutableStateOf(false) }
     var showCallRecorderDialog by remember { mutableStateOf(false) }
     var showMiloAssistant by remember { mutableStateOf(false) }
+    var pendingMiloPrompt by remember { mutableStateOf<String?>(null) }
 
     val isWorking = attendance?.isWorking ?: false
     val context = LocalContext.current
@@ -209,7 +211,7 @@ fun EmployeeDashboardScreen(
     Scaffold(
         topBar = {
             AppHeader(
-                title = "MB Traker",
+                title = "MB EM",
                 showBrandLogo = true,
                 onOpenChat = onNavigateToChat,
                 unreadChatCount = unreadChatCount,
@@ -335,9 +337,12 @@ fun EmployeeDashboardScreen(
                 viewModel = viewModel,
                 onOpenAssistant = {
                     MiloHaptics.performButtonTap(context)
+                    pendingMiloPrompt = null
                     showMiloAssistant = true
                 },
                 onQuickPrompt = { prompt ->
+                    MiloHaptics.performButtonTap(context)
+                    pendingMiloPrompt = prompt
                     showMiloAssistant = true
                     viewModel.miloViewModel.handleEvent(MiloEvent.Thinking(prompt))
                 }
@@ -680,6 +685,14 @@ fun EmployeeDashboardScreen(
             )
         }
 
+        // 🥧 Recharts Interactive Pie Chart Widget (Pending vs. Completed Tasks)
+        item {
+            RechartsTaskPieChartWidget(
+                viewModel = viewModel,
+                onNavigateToTasks = onNavigateToTasks
+            )
+        }
+
         // 📈 Recharts 30-Day Trends & Analytics Widget (Attendance vs. Task Completion Rates)
         item {
             RechartsTrendDashboardWidget(
@@ -738,7 +751,11 @@ fun EmployeeDashboardScreen(
     if (showMiloAssistant) {
         MiloSmartAssistantSheet(
             viewModel = viewModel,
-            onDismiss = { showMiloAssistant = false },
+            initialPrompt = pendingMiloPrompt,
+            onDismiss = {
+                showMiloAssistant = false
+                pendingMiloPrompt = null
+            },
             onNavigateToLeads = onNavigateToLeads,
             onNavigateToTasks = onNavigateToTasks,
             onNavigateToCalls = onNavigateToCalls
@@ -833,7 +850,7 @@ fun FirstTimeCheckInDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Welcome to MB Traker!",
+                    text = "Welcome to MB EM!",
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     color = TextPrimary
@@ -1980,6 +1997,7 @@ fun CallRecorderAudioDialog(
 /**
  * 📢 Official Announcements & Push Broadcasts Card
  * Displays real-time admin broadcast alerts and push notifications on the employee home dashboard.
+ * Backed by Firestore addSnapshotListener for zero-latency live updates.
  */
 @Composable
 fun EmployeeAnnouncementsCard(
@@ -1987,22 +2005,52 @@ fun EmployeeAnnouncementsCard(
     onNavigateToNotifications: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Step 3: Collect live broadcast state in Jetpack Compose UI
+    val liveAdminBroadcasts by viewModel.liveAdminBroadcasts.collectAsState()
     val broadcastHistory by viewModel.fcmBroadcastHistory.collectAsState()
     val allNotifications by viewModel.notifications.collectAsState()
     val unreadCount by viewModel.unreadNotificationCount.collectAsState()
 
-    // Gather latest broadcasts either from FCM broadcast history or Notification table
-    val recentBroadcasts = remember(broadcastHistory, allNotifications) {
+    var showSendBroadcastDialog by remember { mutableStateOf(false) }
+
+    // Gather latest broadcasts: prioritize real-time Firestore snapshot broadcasts
+    val recentBroadcasts = remember(liveAdminBroadcasts, broadcastHistory, allNotifications) {
         val list = mutableListOf<Triple<String, String, String>>() // title, message, time
-        broadcastHistory.forEach { b ->
-            list.add(Triple(b.title, b.message, b.formattedDate.ifBlank { "Recent" }))
+
+        // 1. First priority: Real-time Snapshot Listener broadcasts from Firestore
+        liveAdminBroadcasts.forEach { b ->
+            list.add(Triple(b.title, b.message, b.formattedDate.ifBlank { "Just now" }))
         }
+
+        // 2. Secondary: FCM broadcast history
+        broadcastHistory.forEach { b ->
+            if (list.none { it.first == b.title }) {
+                list.add(Triple(b.title, b.message, b.formattedDate.ifBlank { "Recent" }))
+            }
+        }
+
+        // 3. Local notification table
         allNotifications.filter { it.category == "broadcast" || it.category == "announcement" }.forEach { n ->
             if (list.none { it.first == n.title }) {
                 list.add(Triple(n.title, n.subtitle, n.timeAgo))
             }
         }
         list
+    }
+
+    if (showSendBroadcastDialog) {
+        AdminBroadcastComposeDialog(
+            onDismiss = { showSendBroadcastDialog = false },
+            onSend = { title, msg, audience, priority ->
+                viewModel.sendAdminBroadcastPushNotification(
+                    title = title,
+                    message = msg,
+                    audience = audience,
+                    priority = priority
+                )
+                showSendBroadcastDialog = false
+            }
+        )
     }
 
     Card(
@@ -2026,20 +2074,52 @@ fun EmployeeAnnouncementsCard(
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
-                        Text("Announcements & Push Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
-                        Text("Official updates & broadcasts from MB Admin", fontSize = 11.sp, color = TextSecondary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Announcements & Live Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            // Live Firestore snapshot channel status indicator
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFDCFCE7),
+                                border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(Color(0xFF16A34A), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("LIVE SYNC", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF15803D))
+                                }
+                            }
+                        }
+                        Text("Real-time updates pushed live from MB Admin", fontSize = 11.sp, color = TextSecondary)
                     }
                 }
 
-                if (unreadCount > 0) {
-                    Surface(shape = RoundedCornerShape(8.dp), color = StatusRed) {
-                        Text(
-                            "$unreadCount NEW",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { showSendBroadcastDialog = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.AddComment, contentDescription = "Create Broadcast", tint = StatusOrange, modifier = Modifier.size(20.dp))
+                    }
+
+                    if (unreadCount > 0) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(shape = RoundedCornerShape(8.dp), color = StatusRed) {
+                            Text(
+                                "$unreadCount NEW",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -2061,13 +2141,13 @@ fun EmployeeAnnouncementsCard(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Welcome to Making Brands!", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
-                            Text("No new broadcast alerts at this moment. You will be instantly notified here when an admin broadcasts an announcement.", fontSize = 11.sp, color = TextSecondary)
+                            Text("Snapshot listener active on 'admin_broadcasts'. When an admin publishes an update, it will appear here instantly.", fontSize = 11.sp, color = TextSecondary)
                         }
                     }
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    recentBroadcasts.take(2).forEach { (bTitle, bMsg, bTime) ->
+                    recentBroadcasts.take(3).forEach { (bTitle, bMsg, bTime) ->
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0xFFFFFDF5),
@@ -2086,7 +2166,7 @@ fun EmployeeAnnouncementsCard(
                                             color = Color(0xFFEA580C).copy(alpha = 0.15f)
                                         ) {
                                             Text(
-                                                "PRIORITY ALERT",
+                                                "LIVE BROADCAST",
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFFC2410C),
@@ -2110,19 +2190,145 @@ fun EmployeeAnnouncementsCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            OutlinedButton(
-                onClick = onNavigateToNotifications,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusOrange),
-                border = BorderStroke(1.dp, Color(0xFFFED7AA)),
-                modifier = Modifier.fillMaxWidth().height(40.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(Icons.Default.Notifications, contentDescription = null, tint = StatusOrange, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Open Notification Center", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                OutlinedButton(
+                    onClick = onNavigateToNotifications,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusOrange),
+                    border = BorderStroke(1.dp, Color(0xFFFED7AA)),
+                    modifier = Modifier.weight(1f).height(40.dp)
+                ) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, tint = StatusOrange, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Notifications", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = { showSendBroadcastDialog = true },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusOrange),
+                    modifier = Modifier.weight(1f).height(40.dp)
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Admin Push", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                }
             }
         }
     }
+}
+
+/**
+ * Dialog for composing and pushing instant live admin broadcasts.
+ */
+@Composable
+fun AdminBroadcastComposeDialog(
+    onDismiss: () -> Unit,
+    onSend: (title: String, message: String, audience: String, priority: String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var audience by remember { mutableStateOf("All Users") }
+    var priority by remember { mutableStateOf("High") }
+
+    val audienceOptions = listOf("All Users", "Sales Team", "Operations", "Dev Team")
+    val priorityOptions = listOf("Normal", "High", "Urgent")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Campaign, contentDescription = null, tint = StatusOrange)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Publish Admin Broadcast", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Pushes live to Firestore collection 'admin_broadcasts'. All connected user apps update in real time via addSnapshotListener.",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Broadcast Title") },
+                    placeholder = { Text("e.g. Critical Server Maintenance Tonight") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { message = it },
+                    label = { Text("Broadcast Message") },
+                    placeholder = { Text("Type announcement details here...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    maxLines = 5
+                )
+
+                Column {
+                    Text("Target Audience:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        audienceOptions.forEach { opt ->
+                            FilterChip(
+                                selected = audience == opt,
+                                onClick = { audience = opt },
+                                label = { Text(opt, fontSize = 10.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                Column {
+                    Text("Priority Level:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        priorityOptions.forEach { opt ->
+                            FilterChip(
+                                selected = priority == opt,
+                                onClick = { priority = opt },
+                                label = { Text(opt, fontSize = 10.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank() && message.isNotBlank()) {
+                        onSend(title.trim(), message.trim(), audience, priority)
+                    }
+                },
+                enabled = title.isNotBlank() && message.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = StatusOrange)
+            ) {
+                Text("Broadcast Now", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TextSecondary)
+            }
+        }
+    )
 }
 
 /**

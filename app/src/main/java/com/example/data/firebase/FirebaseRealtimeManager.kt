@@ -23,6 +23,7 @@ import com.example.data.model.AttendanceRecord
 import com.example.data.model.ChatMessageEntity
 import com.example.data.model.Department
 import com.example.data.model.EmployeeEntity
+import com.example.data.model.EmployeeRole
 import com.example.data.model.EmployeeStatus
 import com.example.data.model.InvoiceEntity
 import com.example.data.model.QuotationEntity
@@ -129,6 +130,12 @@ object FirebaseRealtimeManager {
     private var notificationDaoRef: NotificationDao? = null
     private var leaveDaoRef: LeaveDao? = null
     private var shiftDaoRef: ShiftDao? = null
+    private var employeeDaoRef: EmployeeDao? = null
+    private var employeeListener: ListenerRegistration? = null
+    private var userListListener: ListenerRegistration? = null
+    private var mioConfigListener: ListenerRegistration? = null
+    private var mioVideosListener: ListenerRegistration? = null
+    private var teamChatCollectionListener: ListenerRegistration? = null
     private var notificationListener: ListenerRegistration? = null
     private val handledNotificationDocIds = ConcurrentHashMap.newKeySet<String>()
 
@@ -171,7 +178,8 @@ object FirebaseRealtimeManager {
         leaveDao: LeaveDao? = null,
         invoiceDao: com.example.data.local.InvoiceDao? = null,
         quotationDao: com.example.data.local.QuotationDao? = null,
-        shiftDao: ShiftDao? = null
+        shiftDao: ShiftDao? = null,
+        employeeDao: EmployeeDao? = null
     ) {
         attendanceDaoRef = attendanceDao
         chatDaoRef = chatDao
@@ -179,6 +187,7 @@ object FirebaseRealtimeManager {
         projectDaoRef = projectDao
         leaveDaoRef = leaveDao
         shiftDaoRef = shiftDao
+        employeeDaoRef = employeeDao
         appContext = context.applicationContext
         appScope = scope
         registerNetworkCallback(context)
@@ -329,6 +338,7 @@ object FirebaseRealtimeManager {
                 startRealtimeHolidayListener(scope)
             }
             startBrandingConfigListener(context)
+            startMiloConfigListener(context)
             return
         }
 
@@ -340,6 +350,7 @@ object FirebaseRealtimeManager {
 
             firestore = FirestoreDbProvider.getFirestore(context)
             startBrandingConfigListener(context)
+            startMiloConfigListener(context)
             isInitialized = true
             updateSyncState(
                 status = NetworkSyncStatus.SYNCED,
@@ -399,6 +410,9 @@ object FirebaseRealtimeManager {
             }
             if (quotationDao != null) {
                 startRealtimeQuotationListener(quotationDao, scope)
+            }
+            if (employeeDao != null) {
+                startRealtimeEmployeeListener(employeeDao, scope)
             }
             startRealtimeHolidayListener(scope)
             scope.launch(Dispatchers.IO) {
@@ -1257,6 +1271,7 @@ object FirebaseRealtimeManager {
     }
 
     private var brandingListener: ListenerRegistration? = null
+    private var miloConfigListener: ListenerRegistration? = null
 
     fun startBrandingConfigListener(context: Context) {
         try {
@@ -1272,9 +1287,141 @@ object FirebaseRealtimeManager {
                     if (bgHex.isNotBlank()) {
                         com.example.util.AppPreferences.saveAppIconBgColor(context, bgHex)
                     }
+
+                    // Parse custom Milo Video URLs from Firestore app_config/branding to sync with MB Admin
+                    try {
+                        val miloStates = com.example.domain.milo.MiloState.values()
+                        for (state in miloStates) {
+                            val parts = state.name.split("_")
+                            val camelSuffix = parts.joinToString("") { part ->
+                                part.lowercase().replaceFirstChar { it.uppercase() }
+                            }
+                            val camelKey = "miloUrl$camelSuffix"
+                            val snakeKey = "milo_url_${state.name.lowercase()}"
+                            val url = snapshot.getString(camelKey) ?: snapshot.getString(snakeKey)
+                            if (!url.isNullOrBlank()) {
+                                com.example.milo.MiloVideoHelper.saveMiloStateUrl(context, url, state)
+                                Log.d(TAG, "Synced Milo custom state URL from branding for ${state.name}: $url")
+                            }
+                        }
+
+                        val assistantCardUrl = snapshot.getString("miloUrlAssistantCard") ?: snapshot.getString("milo_url_assistant_card")
+                        if (!assistantCardUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveMiloAssistantCardUrl(context, assistantCardUrl)
+                        }
+
+                        val askButtonUrl = snapshot.getString("miloUrlAskButton") ?: snapshot.getString("milo_url_ask_button")
+                        if (!askButtonUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveAskMiloButtonUrl(context, askButtonUrl)
+                        }
+
+                        val splashUrl = snapshot.getString("miloUrlSplash") ?: snapshot.getString("milo_url_splash")
+                        if (!splashUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveSplashScreenUrl(context, splashUrl)
+                        }
+
+                        val splashText = snapshot.getString("miloSplashStatusText") ?: snapshot.getString("milo_splash_status_text")
+                        if (!splashText.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveSplashScreenStatusText(context, splashText)
+                        }
+                    } catch (me: Exception) {
+                        Log.w(TAG, "Failed parsing Milo URLs in branding config: ${me.message}")
+                    }
                 }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to start branding config listener: ${e.message}")
+        }
+    }
+
+    fun startMiloConfigListener(context: Context) {
+        try {
+            miloConfigListener?.remove()
+            mioConfigListener?.remove()
+            mioVideosListener?.remove()
+
+            val parseMiloDoc = { snapshot: com.google.firebase.firestore.DocumentSnapshot ->
+                if (snapshot.exists()) {
+                    try {
+                        val miloStates = com.example.domain.milo.MiloState.values()
+                        for (state in miloStates) {
+                            val parts = state.name.split("_")
+                            val camelSuffix = parts.joinToString("") { part ->
+                                part.lowercase().replaceFirstChar { it.uppercase() }
+                            }
+                            val camelKey = "miloUrl$camelSuffix"
+                            val snakeKey = "milo_url_${state.name.lowercase()}"
+                            val mioCamelKey = "mioUrl$camelSuffix"
+                            val mioSnakeKey = "mio_url_${state.name.lowercase()}"
+                            val url = snapshot.getString(camelKey) ?: snapshot.getString(snakeKey)
+                                ?: snapshot.getString(mioCamelKey) ?: snapshot.getString(mioSnakeKey)
+                                ?: snapshot.getString("videoUrl") ?: snapshot.getString("url")
+                            if (!url.isNullOrBlank()) {
+                                com.example.milo.MiloVideoHelper.saveMiloStateUrl(context, url, state)
+                                Log.d(TAG, "Synced Milo state URL from config for ${state.name}: $url")
+                            }
+                        }
+
+                        val assistantCardUrl = snapshot.getString("miloUrlAssistantCard") ?: snapshot.getString("milo_url_assistant_card") ?: snapshot.getString("mioUrlAssistantCard")
+                        if (!assistantCardUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveMiloAssistantCardUrl(context, assistantCardUrl)
+                        }
+
+                        val askButtonUrl = snapshot.getString("miloUrlAskButton") ?: snapshot.getString("milo_url_ask_button") ?: snapshot.getString("mioUrlAskButton")
+                        if (!askButtonUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveAskMiloButtonUrl(context, askButtonUrl)
+                        }
+
+                        val splashUrl = snapshot.getString("miloUrlSplash") ?: snapshot.getString("milo_url_splash") ?: snapshot.getString("mioUrlSplash")
+                        if (!splashUrl.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveSplashScreenUrl(context, splashUrl)
+                        }
+
+                        val splashText = snapshot.getString("miloSplashStatusText") ?: snapshot.getString("milo_splash_status_text")
+                        if (!splashText.isNullOrBlank()) {
+                            com.example.milo.MiloVideoHelper.saveSplashScreenStatusText(context, splashText)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Error in milo/mio config parser: ${e.message}")
+                    }
+                }
+            }
+
+            miloConfigListener = firestore?.collection("app_config")?.document("milo")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    parseMiloDoc(snapshot)
+                }
+
+            mioConfigListener = firestore?.collection("app_config")?.document("mio")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    parseMiloDoc(snapshot)
+                }
+
+            // Real-time listener for 'mio_videos' collection published from MB Admin
+            mioVideosListener = firestore?.collection("mio_videos")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    for (doc in snapshot.documents) {
+                        parseMiloDoc(doc)
+                        val videoUrl = doc.getString("videoUrl") ?: doc.getString("url") ?: doc.getString("miloUrl") ?: doc.getString("mioUrl")
+                        val stateStr = doc.getString("state") ?: doc.getString("miloState") ?: doc.getString("mioState")
+                        if (!videoUrl.isNullOrBlank()) {
+                            if (!stateStr.isNullOrBlank()) {
+                                try {
+                                    val matchedState = com.example.domain.milo.MiloState.valueOf(stateStr.uppercase().trim())
+                                    com.example.milo.MiloVideoHelper.saveMiloStateUrl(context, videoUrl, matchedState)
+                                } catch (_: Exception) {
+                                    com.example.milo.MiloVideoHelper.saveMiloVideoUrl(context, videoUrl)
+                                }
+                            } else {
+                                com.example.milo.MiloVideoHelper.saveMiloVideoUrl(context, videoUrl)
+                            }
+                        }
+                    }
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start milo/mio config listener: ${e.message}")
         }
     }
 
@@ -1493,18 +1640,36 @@ object FirebaseRealtimeManager {
         if (!isEffectiveOnline()) return
         try {
             globalChatListener?.remove()
-            globalChatListener = firestore?.collection("chat_messages")
-                ?.orderBy("createdAt", Query.Direction.DESCENDING)
-                ?.limit(150)
-                ?.addSnapshotListener { snapshot, error ->
-                    if (error != null) {
-                        Log.w(TAG, "Global chat listener error: ${error.message}")
-                        return@addSnapshotListener
+            teamChatCollectionListener?.remove()
+
+            val attachCollectionListener = { collectionName: String ->
+                firestore?.collection(collectionName)
+                    ?.orderBy("createdAt", Query.Direction.DESCENDING)
+                    ?.limit(150)
+                    ?.addSnapshotListener { snapshot, error ->
+                        if (error != null) {
+                            Log.w(TAG, "Global chat listener ($collectionName with orderBy) error: ${error.message}. Retrying fallback query...")
+                            firestore?.collection(collectionName)
+                                ?.limit(150)
+                                ?.addSnapshotListener { fallbackSnapshot, fallbackError ->
+                                    if (fallbackError != null) {
+                                        Log.w(TAG, "Fallback chat listener ($collectionName) error: ${fallbackError.message}")
+                                        return@addSnapshotListener
+                                    }
+                                    if (fallbackSnapshot != null) {
+                                        processChatSnapshot(fallbackSnapshot, chatDao, scope)
+                                    }
+                                }
+                            return@addSnapshotListener
+                        }
+                        if (snapshot != null) {
+                            processChatSnapshot(snapshot, chatDao, scope)
+                        }
                     }
-                    if (snapshot != null) {
-                        processChatSnapshot(snapshot, chatDao, scope)
-                    }
-                }
+            }
+
+            globalChatListener = attachCollectionListener("chat_messages")
+            teamChatCollectionListener = attachCollectionListener("team_chat")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start global chat listener: ${e.message}")
         }
@@ -1761,6 +1926,7 @@ object FirebaseRealtimeManager {
                 "readAt" to null
             )
             firestore?.collection("chat_messages")?.document(docId)?.set(data, SetOptions.merge())
+            firestore?.collection("team_chat")?.document(docId)?.set(data, SetOptions.merge())
                 ?.addOnSuccessListener {
                     pendingChatMessagesQueue.removeIf { it.id == finalId }
                     appScope?.launch(Dispatchers.IO) {
@@ -2418,6 +2584,44 @@ object FirebaseRealtimeManager {
             }
         }
 
+        // 6. Fetch latest employees from Firestore (synced with MB Admin)
+        try {
+            val empSnapshot = firestore?.collection("employees")?.get(Source.DEFAULT)?.awaitTask()
+            if (empSnapshot != null && !empSnapshot.isEmpty) {
+                for (doc in empSnapshot.documents) {
+                    try {
+                        val id = doc.safeLongOrNull("id") ?: Math.abs(doc.id.hashCode().toLong())
+                        val name = doc.safeString("name", "")
+                        val email = doc.safeString("email", "")
+                        val phone = doc.safeString("phoneNumber", doc.safeString("phone", "+91 98765 00000"))
+                        val designation = doc.safeString("designation", "Operations Associate")
+                        val deptName = doc.safeString("department", "OPERATIONS")
+                        val password = doc.safeString("password", "")
+                        val statusStr = doc.safeString("status", "ACTIVE")
+
+                        if (name.isNotBlank() && email.isNotBlank()) {
+                            val emp = EmployeeEntity(
+                                id = id,
+                                name = name,
+                                email = email,
+                                phone = phone,
+                                designation = designation,
+                                department = try { Department.valueOf(deptName.uppercase()) } catch (_: Exception) { Department.OPERATIONS },
+                                password = password,
+                                role = EmployeeRole.DEVELOPER,
+                                status = if (statusStr.equals("ON_LEAVE", true)) EmployeeStatus.ON_LEAVE else EmployeeStatus.ACTIVE
+                            )
+                            employeeDao.insert(emp)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Skipping malformed employee doc ${doc.id}: ${e.message}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Refresh employees failed: ${e.message}")
+        }
+
         updateSyncState(
             status = NetworkSyncStatus.SYNCED,
             isOnline = true,
@@ -2425,6 +2629,67 @@ object FirebaseRealtimeManager {
             statusMessage = "Firestore: Live & Synced Just Now",
             newTimestamp = System.currentTimeMillis()
         )
+    }
+
+    // --- EMPLOYEES REAL-TIME LISTENER (Live Sync with MB Admin) ---
+    fun startRealtimeEmployeeListener(employeeDao: EmployeeDao, scope: CoroutineScope) {
+        if (!isEffectiveOnline() || firestore == null) return
+        try {
+            employeeListener?.remove()
+            userListListener?.remove()
+
+            val processEmployeeDoc = { doc: com.google.firebase.firestore.DocumentSnapshot ->
+                try {
+                    val id = doc.safeLongOrNull("id") ?: Math.abs(doc.id.hashCode().toLong())
+                    val name = doc.safeString("name", doc.safeString("fullName", doc.safeString("displayName", "")))
+                    val email = doc.safeString("email", doc.safeString("emailAddress", ""))
+                    val phone = doc.safeString("phoneNumber", doc.safeString("phone", doc.safeString("mobile", "+91 98765 00000")))
+                    val designation = doc.safeString("designation", doc.safeString("title", "Operations Associate"))
+                    val deptName = doc.safeString("department", doc.safeString("dept", "OPERATIONS"))
+                    val password = doc.safeString("password", "")
+                    val statusStr = doc.safeString("status", "ACTIVE")
+                    val roleStr = doc.safeString("role", doc.safeString("userRole", "employee"))
+                    val roleEnum = if (roleStr.contains("admin", true) || roleStr.contains("manager", true)) EmployeeRole.ADMIN else EmployeeRole.DEVELOPER
+
+                    if (name.isNotBlank() && email.isNotBlank()) {
+                        val emp = EmployeeEntity(
+                            id = id,
+                            name = name,
+                            email = email,
+                            phone = phone,
+                            designation = designation,
+                            department = try { Department.valueOf(deptName.uppercase().trim()) } catch (_: Exception) { Department.OPERATIONS },
+                            password = password,
+                            role = roleEnum,
+                            status = if (statusStr.contains("LEAVE", true)) EmployeeStatus.ON_LEAVE else EmployeeStatus.ACTIVE
+                        )
+                        scope.launch(Dispatchers.IO) {
+                            employeeDao.insert(emp)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Skipping realtime employee doc ${doc.id}: ${e.message}")
+                }
+            }
+
+            employeeListener = firestore?.collection("employees")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    for (doc in snapshot.documents) {
+                        processEmployeeDoc(doc)
+                    }
+                }
+
+            userListListener = firestore?.collection("users")
+                ?.addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) return@addSnapshotListener
+                    for (doc in snapshot.documents) {
+                        processEmployeeDoc(doc)
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start employee listener: ${e.message}")
+        }
     }
 
     // --- LEADS REAL-TIME LISTENER ---
@@ -2978,8 +3243,8 @@ object FirebaseRealtimeManager {
             val configSnapshot = configDoc.get().awaitTask()
             if (configSnapshot == null || !configSnapshot.exists()) {
                 val appConfig = hashMapOf(
-                    "appName" to "MB Taker",
-                    "appSubTitle" to "Enterprise Suite & Smart Operations",
+                    "appName" to "MB EM",
+                    "appSubTitle" to "Employee Workspace & Operations",
                     "version" to "1.0.0",
                     "databaseReady" to true,
                     "realtimeEnabled" to true,
@@ -2997,8 +3262,8 @@ object FirebaseRealtimeManager {
                     "id" to 1L,
                     "authorName" to "MB Operations",
                     "authorRole" to "Admin",
-                    "title" to "🎉 Welcome to MB Taker Enterprise",
-                    "content" to "All enterprise tasks, real-time attendance, leads, and company updates are now seamlessly synchronized with Firestore.",
+                    "title" to "🎉 Welcome to MB EM Employee Workspace",
+                    "content" to "All employee tasks, real-time attendance, shifts, team chat, and updates are synchronized with the central MB Admin database.",
                     "category" to "announcement",
                     "timestampText" to "Just now",
                     "likesCount" to 5,

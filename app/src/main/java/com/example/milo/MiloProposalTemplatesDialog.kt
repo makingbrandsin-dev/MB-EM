@@ -1,5 +1,10 @@
 package com.example.milo
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -7,20 +12,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.example.data.model.LeadEntity
 import com.example.ui.screens.MainViewModel
 import com.example.ui.theme.*
+import com.example.util.MiloHaptics
+import com.example.util.WhatsAppHelper
 
 data class ProposalTemplate(
     val title: String,
@@ -36,9 +44,13 @@ fun MiloProposalTemplatesDialog(
     onDismiss: () -> Unit,
     onSelectTemplate: (String, String) -> Unit // returns (templateTitle, filledContent)
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val leads by viewModel.leads.collectAsState()
     val projects by viewModel.projects.collectAsState()
+
+    var activeTemplateTitle by remember { mutableStateOf<String?>(null) }
+    var activeTemplateContent by remember { mutableStateOf<String?>(null) }
+    var selectedLead by remember { mutableStateOf<LeadEntity?>(null) }
 
     val templates = remember(leads, projects) {
         listOf(
@@ -47,62 +59,118 @@ fun MiloProposalTemplatesDialog(
                 description = "Customized B2B sales pitch tailored to the latest CRM lead's requirement.",
                 iconEmoji = "🤝",
                 generateContent = { vm ->
-                    val latestLead = leads.firstOrNull { !it.stage.equals("Won", true) && !it.stage.equals("Lost", true) }
+                    val lead = selectedLead
+                        ?: leads.firstOrNull { !it.stage.equals("Won", true) && !it.stage.equals("Lost", true) }
                         ?: leads.firstOrNull()
-                    if (latestLead != null) {
+                    if (lead != null) {
                         """
-                        🦁 **Milo AI Sales Pitch Proposal Template**
+                        🦁 *MAKING BRANDS — EXECUTIVE SALES PITCH*
                         --------------------------------------------
-                        **Client Name:** ${latestLead.name}
-                        **Company:** ${latestLead.company}
-                        **Project Value:** ${latestLead.potentialValue}
-                        **Source Platform:** ${latestLead.source}
+                        Client: ${lead.name} (${lead.company})
+                        Contact: ${lead.phone} | ${lead.email}
+                        Projected Value: ${lead.potentialValue}
+                        Lead Stage: ${lead.stage}
+                        Source: ${lead.source}
 
-                        Dear ${latestLead.name},
+                        Hello ${lead.name},
 
-                        We reviewed your core requirement for *${latestLead.requirement}* and are excited to draft this comprehensive roadmap. Our executive team at Making Brands proposes a robust alignment strategy tailored to optimize your CRM workflow.
+                        I hope you're having an inspiring week!
 
-                        With a projected budget of *${latestLead.potentialValue}*, we guarantee:
-                        1. 20X Faster Lead Engagement Funnel Setup
-                        2. Native Biometric Verification Gateways
-                        3. Automated Call Tracking & CRM Syncing
+                        I am reaching out from Making Brands regarding your inquiry for *${lead.requirement.ifBlank { "Digital Transformation & Business Growth" }}*. 
 
-                        Let's grow your brand with pride! 🦁
+                        Our team has analyzed your market sector and identified 3 direct opportunities to amplify your sales and reach:
+                        1. High-converting modern web & mobile architecture tailored for your customers.
+                        2. Direct pipeline automation that captures high-intent prospects 24/7.
+                        3. Strategic brand positioning to outpace industry competitors.
+
+                        We would love to share a bespoke 15-minute live walkthrough of how we solved this for comparable brands.
+
+                        Would you be open for a short call tomorrow at 11:30 AM or 3:00 PM?
+
+                        Warm regards,
+                        ${lead.assignedTo.ifBlank { "Client Relations Team" }}
+                        Making Brands • makingbrands.in
                         """.trimIndent()
                     } else {
-                        "🦁 No CRM Leads currently present in the database. Please add a lead first to generate a context-aware pitch."
+                        """
+                        🦁 *MAKING BRANDS — EXECUTIVE SALES PITCH*
+                        --------------------------------------------
+                        Hello Partner,
+
+                        I'm reaching out from Making Brands regarding scaling your customer reach and brand identity. 
+
+                        We specialize in custom web/app architecture and ROI-driven marketing campaigns. Would you be open for a brief 10-minute discovery call this week?
+
+                        Warm regards,
+                        Client Partnership Team • Making Brands
+                        """.trimIndent()
                     }
                 }
             ),
             ProposalTemplate(
-                title = "Project Milestone Structure",
-                description = "Detailed milestone timeline proposal based on active enterprise projects.",
+                title = "Formal Quotation & Scope",
+                description = "Standard commercial breakdown with payment schedule & milestones.",
+                iconEmoji = "📑",
+                generateContent = { vm ->
+                    val lead = selectedLead
+                        ?: leads.firstOrNull { !it.stage.equals("Won", true) && !it.stage.equals("Lost", true) }
+                        ?: leads.firstOrNull()
+                    val targetClient = lead?.name ?: "Executive Client"
+                    val targetCompany = lead?.company ?: "Client Enterprise"
+                    val req = lead?.requirement?.ifBlank { "Full-Stack Branding & Tech Architecture" } ?: "Full-Stack Branding & Tech Architecture"
+                    """
+                    🦁 *MAKING BRANDS — COMMERCIAL QUOTATION*
+                    -----------------------------------------
+                    Client: $targetClient ($targetCompany)
+                    Requirement: $req
+                    Date: Auto-Generated Live Record
+
+                    *1. Deliverables & Scope:*
+                    • Complete UI/UX High-Fidelity Prototyping
+                    • Mobile-Optimized Responsive Web/App Stack
+                    • Real-Time Cloud Telemetry & Automated CRM Sync
+                    • 30-Day Post-Launch Hypercare Support
+
+                    *2. Commercial Schedule:*
+                    • Total Estimate: ₹1,25,000 + 18% GST
+                    • Payment Terms: 50% Kickoff | 30% Beta Review | 20% Production Go-Live
+
+                    *3. Target Timeline:*
+                    • 3-4 Weeks from architecture sign-off
+
+                    Prepared with dedication,
+                    Making Brands Technical Leadership
+                    """.trimIndent()
+                }
+            ),
+            ProposalTemplate(
+                title = "Project Milestone Schedule",
+                description = "Multi-phase delivery schedule based on active enterprise projects.",
                 iconEmoji = "🎯",
                 generateContent = { vm ->
                     val activeProject = projects.firstOrNull { it.status.equals("Active", true) }
                         ?: projects.firstOrNull()
                     if (activeProject != null) {
                         """
-                        🦁 **Milo AI Project Milestone Proposal**
-                        -----------------------------------------
-                        **Project Title:** ${activeProject.name}
-                        **Client Partner:** ${activeProject.clientName}
-                        **Budget Allocated:** ₹${String.format("%,.0f", activeProject.budget)}
-                        **Project Deadline:** ${activeProject.deadline}
+                        🦁 *MAKING BRANDS — PROJECT MILESTONE SCHEDULE*
+                        -------------------------------------------------
+                        Project Title: ${activeProject.name}
+                        Client Partner: ${activeProject.clientName}
+                        Budget Allocated: ₹${String.format("%,.0f", activeProject.budget)}
+                        Project Deadline: ${activeProject.deadline}
 
                         Dear ${activeProject.clientName} Team,
 
-                        Here is our proposed milestone schedule for *${activeProject.name}* to ensure seamless and high-quality delivery:
-
-                        *   **Milestone 1 (UX Design Review):** Target completion within 7 days.
-                        *   **Milestone 2 (Core Feature Build):** Target date: ${activeProject.startDate}.
-                        *   **Milestone 3 (Final Deployment & Launch):** Final delivery by ${activeProject.deadline}.
+                        Here is our proposed milestone schedule for *${activeProject.name}* to ensure seamless delivery:
+                        • Phase 1 (Architecture & UX Review): Target completion within 7 days.
+                        • Phase 2 (Core Feature Build): Target completion ${activeProject.startDate}.
+                        • Phase 3 (Production Deployment & Launch): Handover by ${activeProject.deadline}.
 
                         Total Contract Value: ₹${String.format("%,.0f", activeProject.budget)}
-                        Our lead engineer, ${activeProject.managerName}, is ready to schedule our first kickoff meeting today.
+                        Lead Project Manager: ${activeProject.managerName}
                         """.trimIndent()
                     } else {
-                        "🦁 No active projects found in Room DB. Try adding a project structure first!"
+                        "🦁 No active projects currently found. Create an active project in Projects screen to populate this proposal."
                     }
                 }
             ),
@@ -111,25 +179,22 @@ fun MiloProposalTemplatesDialog(
                 description = "Professional welcome checklist structure populated with active employee assignments.",
                 iconEmoji = "📋",
                 generateContent = { vm ->
-                    val latestLead = leads.firstOrNull()
-                    val assignedTo = latestLead?.assignedTo ?: "Arjun Mehta (Engineering Manager)"
+                    val lead = selectedLead ?: leads.firstOrNull()
+                    val assignedTo = lead?.assignedTo ?: "Arjun Mehta (Lead Engineering)"
                     """
-                    🦁 **Client Onboarding & Kickoff Template**
-                    -------------------------------------------
-                    **Partner Organization:** ${latestLead?.company ?: "Making Brands Client"}
-                    **Assigned Executive Partner:** $assignedTo
-                    **Onboarding Status:** In Progress
+                    🦁 *MAKING BRANDS — CLIENT ONBOARDING CHECKLIST*
+                    --------------------------------------------------
+                    Partner: ${lead?.company ?: "Client Enterprise"}
+                    Contact: ${lead?.name ?: "Client Partner"}
+                    Assigned Lead: $assignedTo
 
-                    Dear Client Partner,
+                    1. [x] Telemetry Workspace & Project Channel Initialized
+                    2. [ ] Kickoff Strategy & Requirement Alignment Call
+                    3. [ ] Brand Assets & Domain Credentials Collected
+                    4. [ ] Beta Milestone Target Set (14 Days)
 
-                    Welcome to the Making Brands Family! To facilitate a seamless integration, we have initiated your executive onboarding checklist:
-
-                    1.  **Lead Executive Assigned:** $assignedTo
-                    2.  **Telemetry Workspace Configuration:** Activated
-                    3.  **Kickoff Call Scheduling:** Pending Follow-Up
-                    4.  **Resource Allocation:** Completed
-
-                    We look forward to building a high-value, long-term alliance together.
+                    We look forward to an exceptional partnership together!
+                    Making Brands Team
                     """.trimIndent()
                 }
             )
@@ -138,17 +203,18 @@ fun MiloProposalTemplatesDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxHeight(0.88f)
+                .padding(vertical = 12.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
+                    .fillMaxSize()
+                    .padding(18.dp)
             ) {
                 // Header Row
                 Row(
@@ -160,16 +226,32 @@ fun MiloProposalTemplatesDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Description,
-                            contentDescription = null,
-                            tint = BrandBlue,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        if (activeTemplateTitle != null) {
+                            IconButton(
+                                onClick = {
+                                    activeTemplateTitle = null
+                                    activeTemplateContent = null
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = TextPrimary
+                                )
+                            }
+                        } else {
+                            Icon(
+                                Icons.Default.Description,
+                                contentDescription = null,
+                                tint = ButtonPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                         Text(
-                            "Milo Drafting Templates",
+                            text = activeTemplateTitle ?: "Milo Drafting Templates",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 17.sp,
                             color = TextPrimary
                         )
                     }
@@ -179,66 +261,160 @@ fun MiloProposalTemplatesDialog(
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    "Select a pre-configured business proposal structure. Milo will instantly populate it with context-aware lead and project records from your local database.",
-                    fontSize = 11.5.sp,
-                    color = TextSecondary,
-                    lineHeight = 16.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
 
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(templates) { template ->
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val content = template.generateContent(viewModel)
-                                    onSelectTemplate(template.title, content)
-                                    onDismiss()
-                                }
+                // If a template is active, show the rich live working template editor & actions
+                if (activeTemplateTitle != null && activeTemplateContent != null) {
+                    var editableContent by remember(activeTemplateContent) {
+                        mutableStateOf(activeTemplateContent ?: "")
+                    }
+
+                    Text(
+                        text = "Real working draft populated from live CRM records. Edit or send directly:",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = editableContent,
+                        onValueChange = { editableContent = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 12.5.sp,
+                            lineHeight = 18.sp,
+                            color = TextPrimary
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ButtonPrimary,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Real Working Action Buttons (Copy, WhatsApp, Send to Milo Assistant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // 1. Copy button
+                        OutlinedButton(
+                            onClick = {
+                                MiloHaptics.performButtonTap(context)
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                cm.setPrimaryClip(ClipData.newPlainText("Template", editableContent))
+                                Toast.makeText(context, "Copied template to clipboard!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFEFF6FF),
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(template.iconEmoji, fontSize = 20.sp)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = template.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = TextPrimary
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = template.description,
-                                        fontSize = 11.sp,
-                                        color = TextSecondary,
-                                        lineHeight = 15.sp
-                                    )
-                                }
-                                Icon(
-                                    Icons.Default.AutoAwesome,
-                                    contentDescription = null,
-                                    tint = Color(0xFFB45309),
-                                    modifier = Modifier.size(16.dp)
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        // 2. WhatsApp Direct Share
+                        Button(
+                            onClick = {
+                                MiloHaptics.performButtonTap(context)
+                                val targetPhone = selectedLead?.phone ?: leads.firstOrNull()?.phone ?: ""
+                                WhatsAppHelper.sendWhatsAppMessage(
+                                    context = context,
+                                    phoneNumber = targetPhone,
+                                    message = editableContent
                                 )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                            modifier = Modifier.weight(1.3f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        // 3. Ask Milo button (passes exact prompt into Milo)
+                        Button(
+                            onClick = {
+                                MiloHaptics.performButtonTap(context)
+                                onSelectTemplate(activeTemplateTitle!!, editableContent)
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ButtonPrimary),
+                            modifier = Modifier.weight(1.3f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Use in Milo", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                } else {
+                    // Templates List View
+                    Text(
+                        "Select any business proposal or pitch structure. Milo connects to your live database to generate a real, ready-to-send draft.",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(templates) { template ->
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        MiloHaptics.performButtonTap(context)
+                                        val content = template.generateContent(viewModel)
+                                        activeTemplateTitle = template.title
+                                        activeTemplateContent = content
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFFEFF6FF),
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(template.iconEmoji, fontSize = 22.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = template.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.5.sp,
+                                            color = TextPrimary
+                                        )
+                                        Spacer(modifier = Modifier.height(3.dp))
+                                        Text(
+                                            text = template.description,
+                                            fontSize = 11.5.sp,
+                                            color = TextSecondary,
+                                            lineHeight = 15.sp
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = TextMuted,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }

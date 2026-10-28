@@ -2,7 +2,6 @@ package com.example.data.auth
 
 import android.content.Context
 import android.util.Log
-import com.example.data.model.UserProfileEntity
 import com.example.util.BiometricHelper
 import com.example.util.WhatsAppHelper
 import com.google.firebase.FirebaseApp
@@ -15,36 +14,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * Supported User Roles for MB Traker.
- * Maps directly to either the Admin Dashboard ("manager") or Employee Workspace ("home").
+ * Canonical Application Roles for MB EM and MB Admin.
+ * Strictly verified from server records (Firestore /admins or /users).
  */
 enum class AppRole(val roleKey: String, val displayName: String, val targetRoute: String) {
-    ADMIN("admin", "MB Admin", "home"),
+    ADMIN("admin", "Admin", "home"),
     EMPLOYEE("employee", "Employee", "home");
 
-    val isAdmin: Boolean get() = false
+    val isAdmin: Boolean get() = this == ADMIN
 
     companion object {
         fun parse(raw: String?): AppRole {
             if (raw.isNullOrBlank()) return EMPLOYEE
             val s = raw.trim().lowercase()
-            return when {
-                s.contains("admin") || s.contains("manager") || s.contains("director") || s.contains("lead") -> ADMIN
-                else -> EMPLOYEE
-            }
+            return if (s == "admin") ADMIN else EMPLOYEE
         }
     }
 }
 
 /**
- * Authenticated User record fetched and verified from Firestore.
+ * Authenticated User record fetched and verified strictly from Firestore.
  */
 data class AuthUser(
     val uid: String,
@@ -55,9 +50,15 @@ data class AuthUser(
     val rawRole: String,
     val designation: String,
     val department: String,
+    val status: String = "ACTIVE",
+    val orgId: String = "org_default",
     val lastLoginAt: Long = System.currentTimeMillis(),
     val source: String = "Firestore"
-)
+) {
+    val isAdmin: Boolean get() = role == AppRole.ADMIN
+    val isPending: Boolean get() = status.equals("PENDING", ignoreCase = true)
+    val isDisabled: Boolean get() = status.equals("DISABLED", ignoreCase = true) || status.equals("INACTIVE", ignoreCase = true)
+}
 
 /**
  * Result of checking user role in Firestore upon login.
@@ -66,11 +67,12 @@ data class AuthCheckResult(
     val user: AuthUser,
     val targetRoute: String,
     val isAdmin: Boolean,
+    val isPending: Boolean,
     val statusMessage: String
 )
 
 /**
- * Contract for Authentication Providers in MB Traker.
+ * Contract for Authentication Providers in MB EM.
  */
 interface AuthProvider {
     val currentUser: StateFlow<AuthUser?>
@@ -78,8 +80,11 @@ interface AuthProvider {
     val isCheckingRole: StateFlow<Boolean>
     val lastStatusMessage: StateFlow<String?>
 
-    suspend fun checkUserRoleInFirestore(identifier: String, defaultRoleHint: String? = null): AuthCheckResult
-    suspend fun updateUserRoleInFirestore(identifier: String, newRole: String): Boolean
+    suspend fun checkUserRoleInFirestore(
+        identifier: String,
+        defaultRoleHint: String? = null,
+        authenticatedUid: String? = null
+    ): AuthCheckResult
     fun logout(context: Context)
 }
 
@@ -100,15 +105,19 @@ internal suspend fun <T> com.google.android.gms.tasks.Task<T>.awaitTask(): T =
     }
 
 /**
- * Firestore-backed Authentication Provider that checks the user's role stored in Firestore
- * upon login and determines whether the UI flow redirects to the Admin Dashboard ("manager")
- * or the Employee Workspace ("home").
+ * Authoritative Firestore-backed Role and Identity Verification Provider.
+ * Enforces zero-trust:
+ * - Admin rights are only granted if document exists in `/admins/{uid}` or role=="admin" in `/users/{uid}`.
+ * - No local APK account seeding.
+ * - No substring matching on emails or phone numbers.
+ * - Unknown or new users default strictly to `EMPLOYEE` with status `PENDING`.
+ * - Fails closed if account is deactivated.
  */
 object FirestoreAuthProvider : AuthProvider {
 
     private const val TAG = "FirestoreAuthProvider"
     private const val USERS_COLLECTION = "users"
-    private const val USER_PROFILES_COLLECTION = "user_profiles"
+    private const val ADMINS_COLLECTION = "admins"
 
     private var firestore: FirebaseFirestore? = null
     private var isInitialized = false
@@ -126,9 +135,6 @@ object FirestoreAuthProvider : AuthProvider {
     private val _lastStatusMessage = MutableStateFlow<String?>("Ready for Firestore Authentication")
     override val lastStatusMessage: StateFlow<String?> = _lastStatusMessage.asStateFlow()
 
-    /**
-     * Initializes Firebase and ensures Firestore collections are populated with default roles.
-     */
     fun initialize(context: Context, scope: CoroutineScope) {
         if (isInitialized && firestore != null) return
 
@@ -145,325 +151,215 @@ object FirestoreAuthProvider : AuthProvider {
 
             firestore = com.example.data.firebase.FirestoreDbProvider.getFirestore(context)
             isInitialized = true
-            _lastStatusMessage.value = "Firestore Auth Provider: Connected & Active"
-
-            // Seed initial administrative and employee accounts in Firestore
-            scope.launch(Dispatchers.IO) {
-                seedInitialUsersInFirestore()
-            }
+            _lastStatusMessage.value = "Firestore Auth Provider: Active"
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize Firestore Auth Provider: ${e.message}", e)
-            _lastStatusMessage.value = "Firestore Auth Provider: Local Fallback (${e.message})"
+            _lastStatusMessage.value = "Firestore Auth Provider Error (${e.message})"
         }
     }
 
     /**
-     * Pre-populates the Firestore 'users' collection with known profiles so that role lookups
-     * always find the authoritative role in the cloud.
-     */
-    private suspend fun seedInitialUsersInFirestore() {
-        val fs = firestore ?: return
-        try {
-            // 1. MB Admin Account
-            val adminData = mapOf(
-                "uid" to "admin_default",
-                "name" to "MB Admin",
-                "phoneNumber" to "+91 98111 22334",
-                "email" to "admin@makingbrands.in",
-                "role" to "admin",
-                "designation" to "Executive Administrator",
-                "department" to "Management",
-                "status" to "ACTIVE",
-                "updatedAt" to System.currentTimeMillis()
-            )
-            fs.collection(USERS_COLLECTION).document("919811122334")
-                .set(adminData, SetOptions.merge())
-                .awaitTask()
-
-            // 2. Employee Account (Rahul Sharma)
-            val employeeData = mapOf(
-                "uid" to "emp_rahul",
-                "name" to "Rahul Sharma",
-                "phoneNumber" to "+91 98765 43210",
-                "email" to "rahul.sharma@makingbrands.in",
-                "role" to "employee",
-                "designation" to "Senior Android Developer",
-                "department" to "Engineering",
-                "status" to "ACTIVE",
-                "updatedAt" to System.currentTimeMillis()
-            )
-            fs.collection(USERS_COLLECTION).document("919876543210")
-                .set(employeeData, SetOptions.merge())
-                .awaitTask()
-
-            // 2b. Default Employee Portal Account
-            val defaultEmpData = mapOf(
-                "uid" to "emp_default",
-                "name" to "Making Brands Employee",
-                "phoneNumber" to "+91 98765 43210",
-                "email" to "employee@makingbrands.in",
-                "role" to "employee",
-                "designation" to "Operations Associate",
-                "department" to "Operations",
-                "status" to "ACTIVE",
-                "updatedAt" to System.currentTimeMillis()
-            )
-            fs.collection(USERS_COLLECTION).document("emp_default")
-                .set(defaultEmpData, SetOptions.merge())
-                .awaitTask()
-
-            // 3. Manager Account (Priya Singh)
-            val managerData = mapOf(
-                "uid" to "mgr_priya",
-                "name" to "Priya Singh",
-                "phoneNumber" to "+91 98765 11111",
-                "email" to "priya.singh@makingbrands.in",
-                "role" to "admin", // Manager role redirects to Admin Portal
-                "designation" to "Project Manager",
-                "department" to "Operations",
-                "status" to "ACTIVE",
-                "updatedAt" to System.currentTimeMillis()
-            )
-            fs.collection(USERS_COLLECTION).document("919876511111")
-                .set(managerData, SetOptions.merge())
-                .awaitTask()
-
-            Log.d(TAG, "Successfully seeded authoritative user roles in Firestore")
-        } catch (e: Exception) {
-            Log.w(TAG, "Seeding Firestore user roles skipped or failed: ${e.message}")
-        }
-    }
-
-    /**
-     * Queries Firestore for the user's role and determines the target UI route.
-     * Checks the 'users' collection (and 'user_profiles' as fallback).
-     * If the user doesn't exist yet, automatically provisions them with the selected role.
+     * Queries Firestore for authoritative role and organization status.
+     * Checks server-controlled /admins/{uid} collection first, then /users/{uid}.
+     * Fails closed if user is disabled.
      */
     override suspend fun checkUserRoleInFirestore(
         identifier: String,
-        defaultRoleHint: String?
+        defaultRoleHint: String?,
+        authenticatedUid: String?
     ): AuthCheckResult = withContext(Dispatchers.IO) {
         _isCheckingRole.value = true
         val cleanPhone = WhatsAppHelper.sanitizePhoneNumber(identifier)
-        val fs = firestore
+        val fs = firestore ?: com.example.data.firebase.FirestoreDbProvider.getFirestore()
 
-        _lastStatusMessage.value = "Checking user role in Firestore for: $identifier..."
+        _lastStatusMessage.value = "Verifying role in Firestore..."
 
-        var fetchedRoleString: String? = null
+        val effectiveUid = authenticatedUid?.ifBlank { null }
+            ?: (if (identifier.contains("@")) identifier.trim().lowercase().replace("@", "_").replace(".", "_")
+                else cleanPhone.ifBlank { "anonymous" })
+
+        var isServerAdmin = false
+        var fetchedRole: String? = null
         var fetchedName: String? = null
         var fetchedDesignation: String? = null
         var fetchedDepartment: String? = null
         var fetchedEmail: String? = null
-        val isEmailIdentifier = identifier.contains("@")
-        var userDocId = if (isEmailIdentifier) {
-            identifier.trim().lowercase().replace("@", "_").replace(".", "_")
-        } else {
-            cleanPhone.ifBlank { "user_1" }
-        }
+        var fetchedPhone: String? = null
+        var fetchedStatus = "ACTIVE"
+        var fetchedOrgId = "org_default"
+        var userDocExists = false
 
         if (fs != null) {
             try {
-                if (isEmailIdentifier) {
-                    // Query 'users' by email field
-                    val emailQuery = fs.collection(USERS_COLLECTION)
-                        .whereEqualTo("email", identifier.trim().lowercase())
-                        .limit(1)
-                        .get()
-                        .awaitTask()
-
-                    if (!emailQuery.isEmpty) {
-                        val firstDoc = emailQuery.documents[0]
-                        userDocId = firstDoc.id
-                        fetchedRoleString = firstDoc.getString("role")
-                        fetchedName = firstDoc.getString("name")
-                        fetchedDesignation = firstDoc.getString("designation")
-                        fetchedDepartment = firstDoc.getString("department")
-                        fetchedEmail = firstDoc.getString("email")
-                        Log.d(TAG, "Found user via email in Firestore 'users' with role: $fetchedRoleString")
+                // 1. Authoritative check: verify server-controlled /admins collection
+                val adminDoc = fs.collection(ADMINS_COLLECTION).document(effectiveUid).get().awaitTask()
+                if (adminDoc.exists()) {
+                    isServerAdmin = true
+                    fetchedRole = "admin"
+                    fetchedName = adminDoc.getString("name") ?: "Admin"
+                    fetchedDesignation = adminDoc.getString("designation") ?: "Administrator"
+                    fetchedDepartment = adminDoc.getString("department") ?: "Management"
+                    fetchedEmail = adminDoc.getString("email")
+                    fetchedPhone = adminDoc.getString("phone")
+                    fetchedStatus = adminDoc.getString("status") ?: "ACTIVE"
+                    fetchedOrgId = adminDoc.getString("orgId") ?: "org_default"
+                    userDocExists = true
+                } else if (cleanPhone.isNotBlank()) {
+                    val adminPhoneDoc = fs.collection(ADMINS_COLLECTION).document(cleanPhone).get().awaitTask()
+                    if (adminPhoneDoc.exists()) {
+                        isServerAdmin = true
+                        fetchedRole = "admin"
+                        userDocExists = true
                     }
                 }
 
-                if (fetchedRoleString == null) {
-                    // 1. Direct document lookup by sanitized phone in 'users'
-                    val docSnapshot = fs.collection(USERS_COLLECTION).document(userDocId).get().awaitTask()
-                    if (docSnapshot.exists()) {
-                        fetchedRoleString = docSnapshot.getString("role")
-                        fetchedName = docSnapshot.getString("name")
-                        fetchedDesignation = docSnapshot.getString("designation")
-                        fetchedDepartment = docSnapshot.getString("department")
-                        fetchedEmail = docSnapshot.getString("email")
-                        Log.d(TAG, "Found user in Firestore 'users/$userDocId' with role: $fetchedRoleString")
-                    } else {
-                        // 2. Query 'users' by phoneNumber field
-                        val querySnapshot = fs.collection(USERS_COLLECTION)
-                            .whereEqualTo("phoneNumber", identifier.trim())
+                // 2. Query /users collection by document ID or fields
+                if (!isServerAdmin) {
+                    val userDoc = fs.collection(USERS_COLLECTION).document(effectiveUid).get().awaitTask()
+                    if (userDoc.exists()) {
+                        userDocExists = true
+                        val docRole = userDoc.getString("role")
+                        if (docRole.equals("admin", ignoreCase = true)) {
+                            isServerAdmin = true
+                            fetchedRole = "admin"
+                        } else {
+                            fetchedRole = "employee"
+                        }
+                        fetchedName = userDoc.getString("name") ?: userDoc.getString("displayName")
+                        fetchedDesignation = userDoc.getString("designation")
+                        fetchedDepartment = userDoc.getString("department")
+                        fetchedEmail = userDoc.getString("email")
+                        fetchedPhone = userDoc.getString("phoneNumber") ?: userDoc.getString("phone")
+                        fetchedStatus = userDoc.getString("status") ?: "ACTIVE"
+                        fetchedOrgId = userDoc.getString("orgId") ?: "org_default"
+                    } else if (identifier.contains("@")) {
+                        val emailQuery = fs.collection(USERS_COLLECTION)
+                            .whereEqualTo("email", identifier.trim().lowercase())
                             .limit(1)
                             .get()
                             .awaitTask()
-
-                        if (!querySnapshot.isEmpty) {
-                            val firstDoc = querySnapshot.documents[0]
-                            userDocId = firstDoc.id
-                            fetchedRoleString = firstDoc.getString("role")
-                            fetchedName = firstDoc.getString("name")
-                            fetchedDesignation = firstDoc.getString("designation")
-                            fetchedDepartment = firstDoc.getString("department")
-                            fetchedEmail = firstDoc.getString("email")
-                            Log.d(TAG, "Found user via query in Firestore 'users' with role: $fetchedRoleString")
-                        } else {
-                            // 3. Fallback to 'user_profiles' collection
-                            val profileSnapshot = fs.collection(USER_PROFILES_COLLECTION).document("user_1").get().awaitTask()
-                            if (profileSnapshot.exists()) {
-                                fetchedRoleString = profileSnapshot.getString("role")
-                                fetchedName = profileSnapshot.getString("name")
-                                Log.d(TAG, "Found role in Firestore 'user_profiles/user_1': $fetchedRoleString")
+                        if (!emailQuery.isEmpty) {
+                            userDocExists = true
+                            val first = emailQuery.documents[0]
+                            val docRole = first.getString("role")
+                            if (docRole.equals("admin", ignoreCase = true)) {
+                                isServerAdmin = true
+                                fetchedRole = "admin"
+                            } else {
+                                fetchedRole = "employee"
                             }
+                            fetchedName = first.getString("name") ?: first.getString("displayName")
+                            fetchedDesignation = first.getString("designation")
+                            fetchedDepartment = first.getString("department")
+                            fetchedEmail = first.getString("email")
+                            fetchedPhone = first.getString("phoneNumber") ?: first.getString("phone")
+                            fetchedStatus = first.getString("status") ?: "ACTIVE"
+                            fetchedOrgId = first.getString("orgId") ?: "org_default"
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Firestore role query failed, falling back to local/cached resolution: ${e.message}")
+                Log.w(TAG, "Role check error in Firestore: ${e.message}")
             }
         }
 
-        // If not found in Firestore or offline, determine authoritative role using hint or identifier
-        val finalRoleString = fetchedRoleString ?: run {
-            val resolvedRole = if (
-                defaultRoleHint?.contains("Admin", ignoreCase = true) == true ||
-                cleanPhone.contains("98111") ||
-                identifier.contains("admin", ignoreCase = true)
-            ) {
-                "admin"
+        // 3. New user registration: default strictly to employee with PENDING approval
+        if (!userDocExists) {
+            fetchedRole = "employee"
+            fetchedStatus = "PENDING"
+            fetchedOrgId = "org_default"
+            fetchedName = if (identifier.contains("@")) {
+                identifier.substringBefore("@").replace(".", " ")
+                    .split(" ")
+                    .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
             } else {
-                "employee"
+                "Employee"
             }
+            fetchedDesignation = "Operations Specialist"
+            fetchedDepartment = "Operations"
+            fetchedEmail = if (identifier.contains("@")) identifier.trim().lowercase() else ""
+            fetchedPhone = if (!identifier.contains("@")) identifier.trim() else ""
 
-            // Provision this user in Firestore so it exists for future queries
-            if (fs != null && cleanPhone.isNotBlank()) {
+            if (fs != null && effectiveUid.isNotBlank()) {
                 try {
-                    val newUserRecord = mapOf(
-                        "uid" to "user_$cleanPhone",
-                        "name" to (if (resolvedRole == "admin") "MB Admin" else "Rahul Sharma"),
-                        "phoneNumber" to identifier.trim(),
-                        "email" to (if (resolvedRole == "admin") "admin@makingbrands.in" else "employee@makingbrands.in"),
-                        "role" to resolvedRole,
-                        "designation" to (if (resolvedRole == "admin") "Administrator" else "Team Member"),
-                        "department" to (if (resolvedRole == "admin") "Management" else "Engineering"),
-                        "status" to "ACTIVE",
+                    val initialDoc = mapOf(
+                        "uid" to effectiveUid,
+                        "name" to fetchedName,
+                        "email" to fetchedEmail,
+                        "phoneNumber" to fetchedPhone,
+                        "role" to "employee",
+                        "status" to "PENDING",
+                        "orgId" to "org_default",
+                        "designation" to fetchedDesignation,
+                        "department" to fetchedDepartment,
                         "createdAt" to System.currentTimeMillis(),
                         "lastLoginAt" to System.currentTimeMillis()
                     )
-                    fs.collection(USERS_COLLECTION).document(cleanPhone)
-                        .set(newUserRecord, SetOptions.merge())
+                    fs.collection(USERS_COLLECTION).document(effectiveUid)
+                        .set(initialDoc, SetOptions.merge())
                         .awaitTask()
-                    Log.d(TAG, "Provisioned new user '$cleanPhone' with role '$resolvedRole' in Firestore")
-                } catch (ex: Exception) {
-                    Log.w(TAG, "Could not provision user in Firestore: ${ex.message}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not write initial pending employee record: ${e.message}")
                 }
             }
-            resolvedRole
         }
 
-        // Parse role into AppRole (ADMIN -> "manager", EMPLOYEE -> "home")
-        val appRole = AppRole.parse(finalRoleString)
-        val userName = fetchedName ?: if (appRole.isAdmin) "MB Admin" else "Rahul Sharma"
-        val userDesignation = fetchedDesignation ?: if (appRole.isAdmin) "Administrator" else "Senior Android Developer"
-        val userDepartment = fetchedDepartment ?: if (appRole.isAdmin) "Management" else "Engineering"
-        val userEmail = fetchedEmail ?: if (appRole.isAdmin) "admin@makingbrands.in" else "makingbrands.in@gmail.com"
+        val appRole = if (isServerAdmin || fetchedRole == "admin") AppRole.ADMIN else AppRole.EMPLOYEE
+        val finalStatus = fetchedStatus
+        val finalOrgId = fetchedOrgId
+        val isPending = finalStatus.equals("PENDING", ignoreCase = true)
+        val isDisabled = finalStatus.equals("DISABLED", ignoreCase = true) || finalStatus.equals("INACTIVE", ignoreCase = true)
+
+        if (isDisabled) {
+            _isCheckingRole.value = false
+            _lastStatusMessage.value = "Account deactivated"
+            throw IllegalStateException("Your account has been deactivated. Please contact your organization administrator.")
+        }
 
         val authUser = AuthUser(
-            uid = userDocId,
-            name = userName,
-            phoneNumber = identifier.trim(),
-            email = userEmail,
+            uid = effectiveUid,
+            name = fetchedName ?: if (appRole.isAdmin) "MB Admin" else "Employee",
+            phoneNumber = fetchedPhone ?: identifier.trim(),
+            email = fetchedEmail ?: if (identifier.contains("@")) identifier.trim() else "",
             role = appRole,
-            rawRole = finalRoleString,
-            designation = userDesignation,
-            department = userDepartment,
+            rawRole = if (appRole.isAdmin) "admin" else "employee",
+            designation = fetchedDesignation ?: (if (appRole.isAdmin) "Administrator" else "Operations Specialist"),
+            department = fetchedDepartment ?: (if (appRole.isAdmin) "Management" else "Operations"),
+            status = finalStatus,
+            orgId = finalOrgId,
             lastLoginAt = System.currentTimeMillis(),
-            source = if (fetchedRoleString != null) "Firestore (Cloud)" else "Firestore (Provisioned)"
+            source = "Firestore"
         )
 
         _currentUser.value = authUser
         _currentRole.value = appRole
         _isCheckingRole.value = false
 
-        val statusMsg = if (appRole.isAdmin) {
-            "Verified Role: ${appRole.displayName} (Firestore) ➔ Redirecting to Admin Dashboard"
-        } else {
-            "Verified Role: ${appRole.displayName} (Firestore) ➔ Redirecting to Employee Workspace"
+        val statusMsg = when {
+            isPending -> "Account pending administrator approval"
+            appRole.isAdmin -> "Verified Administrator (Server Record)"
+            else -> "Verified Employee"
         }
         _lastStatusMessage.value = statusMsg
 
-        // Update last login timestamp in Firestore
-        if (fs != null && userDocId.isNotBlank()) {
+        if (fs != null && effectiveUid.isNotBlank()) {
             try {
-                fs.collection(USERS_COLLECTION).document(userDocId)
+                fs.collection(USERS_COLLECTION).document(effectiveUid)
                     .set(mapOf("lastLoginAt" to System.currentTimeMillis()), SetOptions.merge())
             } catch (_: Exception) {}
         }
 
-        // Attach real-time listener to user's Firestore document so any role changes are reflected immediately
-        attachRealtimeRoleListener(userDocId)
+        attachRealtimeRoleListener(effectiveUid)
 
         AuthCheckResult(
             user = authUser,
             targetRoute = appRole.targetRoute,
             isAdmin = appRole.isAdmin,
+            isPending = isPending,
             statusMessage = statusMsg
         )
     }
 
-    /**
-     * Updates the user's role in Firestore and refreshes local auth state.
-     * Allows testing role switching directly against Firestore.
-     */
-    override suspend fun updateUserRoleInFirestore(identifier: String, newRole: String): Boolean = withContext(Dispatchers.IO) {
-        val cleanPhone = WhatsAppHelper.sanitizePhoneNumber(identifier)
-        val fs = firestore ?: return@withContext false
-        val userDocId = cleanPhone.ifBlank { "user_1" }
-
-        try {
-            val updatedAppRole = AppRole.parse(newRole)
-            val roleKey = if (updatedAppRole.isAdmin) "admin" else "employee"
-
-            // 1. Update in 'users' collection
-            fs.collection(USERS_COLLECTION).document(userDocId)
-                .set(
-                    mapOf(
-                        "role" to roleKey,
-                        "updatedAt" to System.currentTimeMillis()
-                    ),
-                    SetOptions.merge()
-                ).awaitTask()
-
-            // 2. Also update in 'user_profiles' collection for compatibility
-            fs.collection(USER_PROFILES_COLLECTION).document("user_1")
-                .set(
-                    mapOf(
-                        "role" to (if (updatedAppRole.isAdmin) "MB Admin" else "Senior Android Developer"),
-                        "updatedAt" to System.currentTimeMillis()
-                    ),
-                    SetOptions.merge()
-                ).awaitTask()
-
-            _currentRole.value = updatedAppRole
-            _currentUser.value = _currentUser.value?.copy(
-                role = updatedAppRole,
-                rawRole = roleKey
-            )
-            _lastStatusMessage.value = "Updated role in Firestore to: ${updatedAppRole.displayName} ➔ Target: ${updatedAppRole.targetRoute}"
-            Log.d(TAG, "Role updated in Firestore for $userDocId: $roleKey")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to update role in Firestore: ${e.message}", e)
-            false
-        }
-    }
-
-    /**
-     * Listens to live role modifications in Firestore.
-     */
     private fun attachRealtimeRoleListener(docId: String) {
         val fs = firestore ?: return
         try {
@@ -472,16 +368,17 @@ object FirestoreAuthProvider : AuthProvider {
                 .addSnapshotListener { snapshot, error ->
                     if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
                     val liveRoleStr = snapshot.getString("role") ?: return@addSnapshotListener
+                    val liveStatus = snapshot.getString("status") ?: "ACTIVE"
+                    val liveOrgId = snapshot.getString("orgId") ?: "org_default"
                     val updatedRole = AppRole.parse(liveRoleStr)
-                    if (updatedRole != _currentRole.value) {
-                        _currentRole.value = updatedRole
-                        _currentUser.value = _currentUser.value?.copy(
-                            role = updatedRole,
-                            rawRole = liveRoleStr
-                        )
-                        _lastStatusMessage.value = "Live Firestore Update: Role changed to ${updatedRole.displayName}"
-                        Log.d(TAG, "Realtime role update received from Firestore: $liveRoleStr")
-                    }
+                    val current = _currentUser.value ?: return@addSnapshotListener
+                    _currentRole.value = updatedRole
+                    _currentUser.value = current.copy(
+                        role = updatedRole,
+                        rawRole = liveRoleStr,
+                        status = liveStatus,
+                        orgId = liveOrgId
+                    )
                 }
         } catch (e: Exception) {
             Log.w(TAG, "Could not attach realtime role listener: ${e.message}")

@@ -57,7 +57,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
+import com.google.firebase.Firebase
+import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.remoteconfig.remoteConfig
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
@@ -857,89 +861,63 @@ fun DocumentScannerScreen(
     }
 }
 
-// Multimodal Gemini REST API or Intelligent Vision OCR fallback
+// Multimodal Gemini (Secure Firebase AI) or Intelligent Vision OCR fallback
 private suspend fun processBitmapWithMiloVision(
     context: Context,
     bitmap: Bitmap
 ): ScannedDocData = withContext(Dispatchers.IO) {
-    val apiKey = BuildConfig.GEMINI_API_KEY
-    if (apiKey.isNotBlank()) {
-        try {
-            val base64Image = bitmapToBase64(bitmap)
-            val jsonPayload = JSONObject().apply {
-                put("contents", org.json.JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", org.json.JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("text", "Extract document details from this paper invoice/receipt image in JSON. Fields required: vendorName, invoiceNumber, date, subtotal (number), taxAmount (number), totalAmount (number), category, itemsSummary. Output ONLY valid JSON.")
-                            })
-                            put(JSONObject().apply {
-                                put("inlineData", JSONObject().apply {
-                                    put("mimeType", "image/jpeg")
-                                    put("data", base64Image)
-                                })
-                            })
-                        })
-                    })
-                })
+    try {
+        val generativeModel = Firebase.ai.generativeModel(
+            modelName = Firebase.remoteConfig.getString("milo_gemini_model"),
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                temperature = 0.1f
             }
+        )
 
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 15000
-            conn.readTimeout = 15000
-
-            conn.outputStream.use { os ->
-                os.write(jsonPayload.toString().toByteArray())
-            }
-
-            if (conn.responseCode == 200) {
-                val responseStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val rootObj = JSONObject(responseStr)
-                val textCandidate = rootObj.getJSONArray("candidates")
-                    .getJSONObject(0)
-                    .getJSONObject("content")
-                    .getJSONArray("parts")
-                    .getJSONObject(0)
-                    .getString("text")
-
-                // Extract JSON substring
-                val jsonStart = textCandidate.indexOf("{")
-                val jsonEnd = textCandidate.lastIndexOf("}")
-                if (jsonStart != -1 && jsonEnd != -1) {
-                    val cleanJson = textCandidate.substring(jsonStart, jsonEnd + 1)
-                    val docObj = JSONObject(cleanJson)
-
-                    val vendor = docObj.optString("vendorName", "Scanned Vendor")
-                    val invNo = docObj.optString("invoiceNumber", "INV-" + (1000..9999).random())
-                    val date = docObj.optString("date", SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date()))
-                    val sub = docObj.optDouble("subtotal", 1000.0)
-                    val tax = docObj.optDouble("taxAmount", sub * 0.18)
-                    val tot = docObj.optDouble("totalAmount", sub + tax)
-                    val cat = docObj.optString("category", "General Expense")
-                    val items = docObj.optString("itemsSummary", "Scanned paper invoice document")
-
-                    return@withContext ScannedDocData(
-                        docType = if (cat.lowercase().contains("expense") || cat.lowercase().contains("dinner") || cat.lowercase().contains("fuel")) "EXPENSE" else "INVOICE",
-                        vendorName = vendor,
-                        invoiceNumber = invNo,
-                        date = date,
-                        subtotal = sub,
-                        taxAmount = tax,
-                        totalAmount = tot,
-                        category = cat,
-                        itemsSummary = items,
-                        rawOcrText = textCandidate,
-                        confidence = "99.2%"
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        val prompt = "Extract document details from this paper invoice/receipt image in JSON. Fields required: vendorName, invoiceNumber, date, subtotal (number), taxAmount (number), totalAmount (number), category, itemsSummary. Output ONLY valid JSON."
+        val inputContent = content {
+            image(bitmap)
+            text(prompt)
         }
+
+        val response = generativeModel.generateContent(inputContent)
+        val textCandidate = response.text ?: ""
+
+        if (textCandidate.isNotBlank()) {
+            // Extract JSON substring
+            val jsonStart = textCandidate.indexOf("{")
+            val jsonEnd = textCandidate.lastIndexOf("}")
+            if (jsonStart != -1 && jsonEnd != -1) {
+                val cleanJson = textCandidate.substring(jsonStart, jsonEnd + 1)
+                val docObj = JSONObject(cleanJson)
+
+                val vendor = docObj.optString("vendorName", "Scanned Vendor")
+                val invNo = docObj.optString("invoiceNumber", "INV-" + (1000..9999).random())
+                val date = docObj.optString("date", SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date()))
+                val sub = docObj.optDouble("subtotal", 1000.0)
+                val tax = docObj.optDouble("taxAmount", sub * 0.18)
+                val tot = docObj.optDouble("totalAmount", sub + tax)
+                val cat = docObj.optString("category", "General Expense")
+                val items = docObj.optString("itemsSummary", "Scanned paper invoice document")
+
+                return@withContext ScannedDocData(
+                    docType = if (cat.lowercase().contains("expense") || cat.lowercase().contains("dinner") || cat.lowercase().contains("fuel")) "EXPENSE" else "INVOICE",
+                    vendorName = vendor,
+                    invoiceNumber = invNo,
+                    date = date,
+                    subtotal = sub,
+                    taxAmount = tax,
+                    totalAmount = tot,
+                    category = cat,
+                    itemsSummary = items,
+                    rawOcrText = textCandidate,
+                    confidence = "99.2%"
+                )
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 
     return@withContext createDefaultSampleDoc()

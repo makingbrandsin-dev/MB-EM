@@ -61,7 +61,7 @@ class MiloViewModel : ViewModel() {
         when (event) {
             is MiloEvent.AppOpened -> {
                 _state.value = MiloState.WELCOME
-                _speechText.value = "🦁 \"Welcome to MB Tracker! Ready to crush targets?\""
+                _speechText.value = "🦁 \"Welcome to MB EM! Ready to crush targets?\""
                 _subSpeechText.value = "Synced with Making Brands Cloud. 128 Active Leads."
                 _suggestedAction.value = "View Dashboard"
                 scheduleAutoReset(8000)

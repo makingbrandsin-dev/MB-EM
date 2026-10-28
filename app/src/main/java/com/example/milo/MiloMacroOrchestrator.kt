@@ -223,7 +223,7 @@ class MiloMacroOrchestrator(private val context: Context) {
         val msg = rawCommand.substringAfter("broadcast", rawCommand).trim()
         val actions = listOf(
             MacroActionResult("Push Notification", "Dispatched FCM broadcast to all team members"),
-            MacroActionResult("Team Chat Log", "Logged announcement to MB Tracker main feed")
+            MacroActionResult("Team Chat Log", "Logged announcement to MB EM main feed")
         )
 
         NotificationHelper.showNotification(

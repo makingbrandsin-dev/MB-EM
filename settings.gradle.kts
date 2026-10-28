@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "MB Taker"
+rootProject.name = "MB EM"
 
 include(":app")

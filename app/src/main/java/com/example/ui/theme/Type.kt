@@ -16,7 +16,7 @@ val InterTightFontFamily = FontFamily(
     Font(R.font.inter_tight, FontWeight.Bold)
 )
 
-// Luxury Display Fonts for App Name "MB Taker"
+// Luxury Display Fonts for App Name "MB EM"
 val CinzelFontFamily = FontFamily(
     Font(R.font.cinzel, FontWeight.Bold)
 )

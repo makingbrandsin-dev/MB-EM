@@ -2,7 +2,7 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// MB Taker Luxury Warm Color Palette
+// MB EM Luxury Warm Color Palette
 val SurfaceBg = Color(0xFFF9F5EF)        // Background color #f9f5ef
 val ScreenBackground = Color(0xFFF9F5EF) // Warm cream screen backdrop #f9f5ef
 

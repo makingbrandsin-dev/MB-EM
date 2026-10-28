@@ -260,7 +260,7 @@ Best regards,
             🎯 *Active Client Projects:* $totalActiveProjects
             📈 *New Leads Pipeline:* $newLeadsToday incoming leads today
 
-            _Generated automatically via MB Traker Enterprise OS._
+            _Generated automatically via MB EM Enterprise._
         """.trimIndent()
 
         return sendWhatsAppMessage(context, adminPhone, message, showSuccessToast = true)

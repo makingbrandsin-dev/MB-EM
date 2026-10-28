@@ -64,7 +64,7 @@ object MiloDailyInsightRepository {
             emoji = "🏆",
             title = "Send Structured Proposals",
             adviceText = "Proposals sent with 2 clear pricing options convert 40% faster than single-item quotes. Offer a standard vs premium package.",
-            actionableStep = "Tip: Use MB Tracker Auto-Quotation to generate PDFs."
+            actionableStep = "Tip: Use MB EM Auto-Quotation to generate PDFs."
         ),
         MiloDailyTip(
             id = 4,
@@ -72,7 +72,7 @@ object MiloDailyInsightRepository {
             emoji = "📲",
             title = "Attach Visual Company Portfolios",
             adviceText = "Clients review WhatsApp PDF brochures 5x more often than long text messages. Always attach a PDF portfolio on first contact.",
-            actionableStep = "Tip: Tap 'Send Brochure' directly in MB Tracker."
+            actionableStep = "Tip: Tap 'Send Brochure' directly in MB EM."
         ),
         MiloDailyTip(
             id = 5,

@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.ClientMeetingEntity
 import com.example.data.model.ShiftScheduleEntity
 import com.example.data.model.TaskEntity
 import com.example.domain.milo.MiloState
@@ -51,7 +52,8 @@ data class CalendarDayItem(
     val isCurrentMonth: Boolean,
     val isToday: Boolean,
     val shifts: List<ShiftScheduleEntity> = emptyList(),
-    val tasksDue: List<TaskEntity> = emptyList()
+    val tasksDue: List<TaskEntity> = emptyList(),
+    val meetings: List<com.example.data.model.ClientMeetingEntity> = emptyList()
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +67,7 @@ fun WorkScheduleCalendarScreen(
     val context = LocalContext.current
     val shifts by viewModel.shiftSchedules.collectAsState(initial = emptyList())
     val tasks by viewModel.tasks.collectAsState(initial = emptyList())
+    val meetings by viewModel.clientMeetings.collectAsState(initial = emptyList())
 
     var viewMode by remember { mutableStateOf("MONTH") } // "MONTH" or "WEEK"
     val calendar = remember { Calendar.getInstance() }
@@ -177,8 +180,8 @@ fun WorkScheduleCalendarScreen(
 
             if (viewMode == "MONTH") {
                 // Monthly Grid View
-                val calendarDays = remember(currentMonthCalendar, shifts, tasks) {
-                    generateMonthDays(currentMonthCalendar, shifts, tasks)
+                val calendarDays = remember(currentMonthCalendar, shifts, tasks, meetings) {
+                    generateMonthDays(currentMonthCalendar, shifts, tasks, meetings)
                 }
 
                 Card(
@@ -253,7 +256,7 @@ fun WorkScheduleCalendarScreen(
                                         )
 
                                         // Badges row for shifts and tasks
-                                        if (day.isCurrentMonth && (day.shifts.isNotEmpty() || day.tasksDue.isNotEmpty())) {
+                                        if (day.isCurrentMonth && (day.shifts.isNotEmpty() || day.tasksDue.isNotEmpty() || day.meetings.isNotEmpty())) {
                                             Row(
                                                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                                                 modifier = Modifier.padding(top = 2.dp)
@@ -270,6 +273,13 @@ fun WorkScheduleCalendarScreen(
                                                         modifier = Modifier
                                                             .size(5.dp)
                                                             .background(if (isSelected) Color.Yellow else Color(0xFFDC2626), CircleShape)
+                                                    )
+                                                }
+                                                if (day.meetings.isNotEmpty()) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(5.dp)
+                                                            .background(if (isSelected) Color.Green else Color(0xFF10B981), CircleShape)
                                                     )
                                                 }
                                             }
@@ -430,7 +440,8 @@ fun WorkScheduleCalendarScreen(
 private fun generateMonthDays(
     calendar: Calendar,
     shifts: List<ShiftScheduleEntity>,
-    tasks: List<TaskEntity>
+    tasks: List<TaskEntity>,
+    meetings: List<ClientMeetingEntity>
 ): List<CalendarDayItem> {
     val list = mutableListOf<CalendarDayItem>()
     val cal = calendar.clone() as Calendar
@@ -452,6 +463,7 @@ private fun generateMonthDays(
         val dateStr = dateFormat.format(cal.time)
         val dayShifts = shifts.filter { it.date == dateStr }
         val dayTasks = tasks.filter { it.dueDate == dateStr }
+        val dayMeetings = meetings.filter { it.checkInTime.contains(dateStr) }
 
         list.add(
             CalendarDayItem(
@@ -460,7 +472,8 @@ private fun generateMonthDays(
                 isCurrentMonth = true,
                 isToday = (dateStr == todayStr),
                 shifts = dayShifts,
-                tasksDue = dayTasks
+                tasksDue = dayTasks,
+                meetings = dayMeetings
             )
         )
     }

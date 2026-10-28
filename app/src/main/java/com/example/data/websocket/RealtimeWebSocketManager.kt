@@ -95,7 +95,7 @@ sealed class WebSocketRealtimeEvent {
  */
 object RealtimeWebSocketManager {
     private const val TAG = "RealtimeWebSocket"
-    private const val DEFAULT_WS_URL = "wss://ws.postman-echo.com/raw"
+    private const val DEFAULT_WS_URL = "" // Postman Echo removed for security compliance
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -116,6 +116,11 @@ object RealtimeWebSocketManager {
     val events: SharedFlow<WebSocketRealtimeEvent> = _events.asSharedFlow()
 
     fun connect(wsUrl: String = DEFAULT_WS_URL) {
+        if (wsUrl.isBlank()) {
+            Log.d(TAG, "WebSocket URL is blank. Secure messaging relies exclusively on Firebase Firestore & Storage.")
+            _connectionState.value = WebSocketConnectionState.DISCONNECTED
+            return
+        }
         if (_connectionState.value == WebSocketConnectionState.CONNECTED ||
             _connectionState.value == WebSocketConnectionState.CONNECTING
         ) {

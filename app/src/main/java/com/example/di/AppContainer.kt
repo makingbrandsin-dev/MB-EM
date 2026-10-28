@@ -64,4 +64,8 @@ class AppContainer(private val context: Context) {
     val domainTaskRepository: com.example.domain.repository.TaskRepository by lazy {
         RepositoryModule.provideDomainTaskRepository(taskDao)
     }
+
+    val userSyncRepository: UserSyncRepository by lazy {
+        UserSyncRepository.getInstance(context, database)
+    }
 }

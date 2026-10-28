@@ -54,7 +54,6 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
     object Login : Screen("login")
-    object Otp : Screen("otp")
     object Home : Screen("home")
     object Crm : Screen("crm")
     object Tasks : Screen("tasks")
@@ -96,6 +95,7 @@ sealed class Screen(val route: String) {
     object MiloOnboarding : Screen("milo_onboarding")
     object AskMilo : Screen("ask_milo")
     object PendingApproval : Screen("pending_approval")
+    object PrivacyPolicy : Screen("privacy_policy")
 }
 
 private fun getScreenOrder(route: String?): Int {
@@ -112,31 +112,11 @@ private fun getScreenOrder(route: String?): Int {
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabEnterTransition(): EnterTransition {
-    val initialOrder = getScreenOrder(initialState.destination.route)
-    val targetOrder = getScreenOrder(targetState.destination.route)
-    val direction = if (targetOrder >= initialOrder) {
-        AnimatedContentTransitionScope.SlideDirection.Start
-    } else {
-        AnimatedContentTransitionScope.SlideDirection.End
-    }
-    return slideIntoContainer(
-        towards = direction,
-        animationSpec = tween(150, easing = FastOutSlowInEasing)
-    ) + fadeIn(animationSpec = tween(120))
+    return fadeIn(animationSpec = tween(120, easing = FastOutSlowInEasing))
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.tabExitTransition(): ExitTransition {
-    val initialOrder = getScreenOrder(initialState.destination.route)
-    val targetOrder = getScreenOrder(targetState.destination.route)
-    val direction = if (targetOrder >= initialOrder) {
-        AnimatedContentTransitionScope.SlideDirection.Start
-    } else {
-        AnimatedContentTransitionScope.SlideDirection.End
-    }
-    return slideOutOfContainer(
-        towards = direction,
-        animationSpec = tween(140, easing = FastOutSlowInEasing)
-    ) + fadeOut(animationSpec = tween(120))
+    return fadeOut(animationSpec = tween(90, easing = FastOutSlowInEasing))
 }
 
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.detailEnterTransition(): EnterTransition {
@@ -176,39 +156,6 @@ fun MainAppNavHost(viewModel: MainViewModel) {
 
     val activity = context as? androidx.fragment.app.FragmentActivity
 
-    // All runtime permissions required for Calling, Call Recording, Location Geofencing, Camera & Notifications
-    val requiredPermissions = remember {
-        buildList {
-            add(Manifest.permission.RECORD_AUDIO)
-            add(Manifest.permission.CALL_PHONE)
-            add(Manifest.permission.READ_PHONE_STATE)
-            add(Manifest.permission.READ_CALL_LOG)
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            add(Manifest.permission.CAMERA)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }.toTypedArray()
-    }
-
-    val permissionsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        // Permissions acknowledged
-    }
-
-    // Prompt for required app permissions only after user enters the main app (not during splash or login)
-    LaunchedEffect(currentRoute) {
-        if (currentRoute != null && currentRoute != Screen.Splash.route && currentRoute != Screen.Login.route && currentRoute != Screen.Otp.route) {
-            val ungranted = requiredPermissions.filter {
-                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
-            }
-            if (ungranted.isNotEmpty()) {
-                permissionsLauncher.launch(ungranted.toTypedArray())
-            }
-        }
-    }
 
     // Handle deep links when user taps a background notification alert (authenticated users only)
     LaunchedEffect(activity?.intent) {
@@ -248,7 +195,6 @@ fun MainAppNavHost(viewModel: MainViewModel) {
     val nonFooterRoutes = listOf(
         Screen.Splash.route,
         Screen.Login.route,
-        Screen.Otp.route,
         Screen.MiloOnboarding.route,
         Screen.PendingApproval.route
     )
@@ -375,32 +321,18 @@ fun MainAppNavHost(viewModel: MainViewModel) {
                 LoginScreen(
                     viewModel = viewModel,
                     onLoginSuccess = { _ ->
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
+                        val record = viewModel.firebaseUserRecord.value
+                        val isPending = record?.isPending == true
+                        if (isPending) {
+                            navController.navigate(Screen.PendingApproval.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
+                        } else {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
                         }
-                    },
-                    onNavigateToOtp = {
-                        navController.navigate(Screen.Otp.route)
                     }
-                )
-            }
-
-            // OTP Screen
-            composable(
-                route = Screen.Otp.route,
-                enterTransition = { detailEnterTransition() },
-                exitTransition = { detailExitTransition() },
-                popEnterTransition = { detailPopEnterTransition() },
-                popExitTransition = { detailPopExitTransition() }
-            ) {
-                OtpVerificationScreen(
-                    viewModel = viewModel,
-                    onVerifySuccess = { _ ->
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
-                    },
-                    onBack = { navController.popBackStack() }
                 )
             }
 
@@ -625,7 +557,8 @@ fun MainAppNavHost(viewModel: MainViewModel) {
                         }
                     },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onNavigateToHelp = { navController.navigate(Screen.HelpSupport.route) }
+                    onNavigateToHelp = { navController.navigate(Screen.HelpSupport.route) },
+                    onNavigateToPrivacy = { navController.navigate(Screen.PrivacyPolicy.route) }
                 )
             }
 
@@ -645,7 +578,22 @@ fun MainAppNavHost(viewModel: MainViewModel) {
                         }
                     },
                     onNavigateToMiloDebug = { navController.navigate(Screen.MiloDebug.route) },
-                    onNavigateToMiloOnboarding = { navController.navigate(Screen.MiloOnboarding.route) }
+                    onNavigateToMiloOnboarding = { navController.navigate(Screen.MiloOnboarding.route) },
+                    onNavigateToPrivacy = { navController.navigate(Screen.PrivacyPolicy.route) }
+                )
+            }
+
+            composable(
+                route = Screen.PrivacyPolicy.route,
+                enterTransition = { detailEnterTransition() },
+                exitTransition = { detailExitTransition() },
+                popEnterTransition = { detailPopEnterTransition() },
+                popExitTransition = { detailPopExitTransition() }
+            ) {
+                com.example.ui.screens.PrivacyPolicyScreen(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
                 )
             }
 

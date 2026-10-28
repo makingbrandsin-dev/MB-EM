@@ -95,7 +95,7 @@ fun MBAppLogo(
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text(
-                    text = "MB Taker",
+                    text = "MB EM",
                     fontFamily = CinzelFontFamily,
                     fontWeight = FontWeight.Bold,
                     fontSize = (size.value * 0.38f).sp,
@@ -103,7 +103,7 @@ fun MBAppLogo(
                     letterSpacing = 1.sp
                 )
                 Text(
-                    text = "Track · Manage · Grow",
+                    text = "Employee Workspace",
                     fontSize = (size.value * 0.18f).sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF705C30),

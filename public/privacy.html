@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - MB EM & MB Admin | Making Brands Enterprise Suite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-sm">
+          MB
+        </div>
+        <div>
+          <h1 class="font-extrabold text-slate-900 text-base leading-tight">Making Brands Enterprise Suite</h1>
+          <p class="text-xs text-slate-500">MB EM & MB Admin · Privacy Policy & Data Safety</p>
+        </div>
+      </div>
+      <a href="/index.html" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">
+        ← Back to App Portal
+      </a>
+    </div>
+  </header>
+
+  <!-- Content -->
+  <main class="flex-1 max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+
+    <!-- Title Banner -->
+    <div class="bg-gradient-to-r from-indigo-900 to-slate-900 text-white rounded-2xl p-8 shadow-md">
+      <span class="bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+        Google Play Policy Compliant
+      </span>
+      <h2 class="text-3xl font-extrabold mt-3 mb-2">Privacy Policy & Personal Data Governance</h2>
+      <p class="text-indigo-200 text-sm">Last Updated: October 2026 · Applicable to MB EM (Employee Client) & MB Admin (Manager Client)</p>
+    </div>
+
+    <!-- Section 1 -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
+      <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">1. Overview and Scope</h3>
+      <p class="text-sm text-slate-600 leading-relaxed">
+        Making Brands Enterprise Suite ("MB EM", "MB Admin", "we", "our") provides internal enterprise workforce management, attendance tracking, task delegation, CRM sales lead pipelines, and internal team communications for verified organization employees and administrators.
+      </p>
+      <p class="text-sm text-slate-600 leading-relaxed">
+        We are committed to user privacy, data minimization, and strict adherence to the Google Play Developer Program Policies. This privacy policy transparently details the data we collect, why we collect it, how it is secured, and your rights to delete your account and personal records.
+      </p>
+    </section>
+
+    <!-- Section 2 -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
+      <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">2. Data Categories Collected & Purpose of Use</h3>
+      <div class="space-y-4 text-sm text-slate-600">
+        <div class="border-l-4 border-indigo-500 pl-4 py-1">
+          <strong class="text-slate-900">User Profile & Account Identifiers:</strong> Name, work email address, telephone number, corporate designation, and department. Used solely for authenticated access, role authorization, and internal employee directory features.
+        </div>
+        <div class="border-l-4 border-emerald-500 pl-4 py-1">
+          <strong class="text-slate-900">Foreground Attendance Location (Geofence):</strong> Coarse and fine GPS coordinates collected <em>strictly</em> at the moment the employee triggers clock-in to verify that punch-in occurs within designated workplace boundaries (250m perimeter). <strong>We NEVER collect continuous or background location.</strong>
+        </div>
+        <div class="border-l-4 border-amber-500 pl-4 py-1">
+          <strong class="text-slate-900">Camera & Attendance Selfie:</strong> A single verification photo captured on-demand during clock-in. No video surveillance, continuous recording, or background camera access occurs.
+        </div>
+        <div class="border-l-4 border-purple-500 pl-4 py-1">
+          <strong class="text-slate-900">Microphone (Team Voice Notes):</strong> Audio recorded strictly on-demand when the user presses and holds the voice note recording button in Team Chat. <strong>No background audio listening or call recording is performed.</strong>
+        </div>
+        <div class="border-l-4 border-blue-500 pl-4 py-1">
+          <strong class="text-slate-900">Business Operational Records:</strong> Tasks, CRM leads, invoices, quotations, and expense claim receipts uploaded via the zero-permission Android Photo Picker.
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3 -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
+      <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">3. Prohibited & Excluded Data Practices</h3>
+      <p class="text-sm text-slate-600 leading-relaxed">
+        To uphold maximum privacy and comply with Google Play permissions policies:
+      </p>
+      <ul class="list-disc list-inside text-sm text-slate-600 space-y-2">
+        <li><strong>No Call Log Access:</strong> The app does not request <code>READ_CALL_LOG</code> or <code>WRITE_CALL_LOG</code>. Call records are never inspected.</li>
+        <li><strong>No Telephony Interception:</strong> <code>PROCESS_OUTGOING_CALLS</code> and <code>READ_PHONE_STATE</code> are removed. Outgoing client calls are launched via the user's default phone dialer (<code>Intent.ACTION_DIAL</code>).</li>
+        <li><strong>No Device Contact Book Harvest:</strong> <code>READ_CONTACTS</code> is excluded. The app operates exclusively on internal CRM leads.</li>
+        <li><strong>No Spyware or Covert Call Recording:</strong> Auto-recording of phone calls is strictly disabled and prohibited.</li>
+      </ul>
+    </section>
+
+    <!-- Section 4 -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-4 shadow-sm">
+      <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">4. Data Security, Backup, & Encryption</h3>
+      <p class="text-sm text-slate-600 leading-relaxed">
+        All communication between MB EM, MB Admin, and our Firebase cloud infrastructure is encrypted using TLS 1.3 over HTTPS. Offline databases on Android devices are sandboxed in private app directories. Furthermore, Android 12+ Data Extraction Rules explicitly exclude authentication tokens and offline database caches from Google Drive cloud backups to eliminate credential leakage.
+      </p>
+    </section>
+
+    <!-- Section 5 -->
+    <section class="bg-white rounded-2xl border border-red-200 p-6 sm:p-8 space-y-4 shadow-sm bg-red-50/20">
+      <h3 class="text-lg font-bold text-red-900 border-b border-red-100 pb-3">5. User Rights & Account Deletion Policy</h3>
+      <p class="text-sm text-slate-700 leading-relaxed">
+        In full compliance with Google Play's Account Deletion Requirement, users have the right to delete their account and associated personal data at any time:
+      </p>
+      <div class="space-y-3 pt-1">
+        <div class="flex items-start gap-3">
+          <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">1</span>
+          <p class="text-sm text-slate-700"><strong>In-App Deletion:</strong> Open MB EM or MB Admin → Settings / Profile → Tap <em>"Privacy Policy & Data Safety"</em> → Tap <em>"Delete Account"</em>.</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="w-6 h-6 rounded-full bg-red-100 text-red-700 font-bold flex items-center justify-center text-xs shrink-0 mt-0.5">2</span>
+          <p class="text-sm text-slate-700"><strong>Web Request Portal:</strong> If you have uninstalled the app or do not have access to your device, submit an account deletion request online at <a href="/delete-account.html" class="text-indigo-600 font-bold underline">makingbrands.com/delete-account</a>.</p>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 pt-2">
+        Upon confirmation, all personal identity tokens, biometric associations, and profile fields are permanently wiped from production databases within 30 days.
+      </p>
+    </section>
+
+    <!-- Section 6 -->
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-2 shadow-sm">
+      <h3 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">6. Contact Data Protection Officer</h3>
+      <p class="text-sm text-slate-600 leading-relaxed">
+        If you have questions regarding this privacy policy or wish to exercise data rights under GDPR or CCPA:
+      </p>
+      <div class="text-sm text-slate-700 font-medium pt-2">
+        <p><strong>Email:</strong> privacy@makingbrands.com</p>
+        <p><strong>Address:</strong> Making Brands HQ, Connaught Place, New Delhi 110001, India</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 bg-white py-6 mt-12">
+    <div class="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <span>© 2026 Making Brands Enterprise Suite. All rights reserved.</span>
+      <div class="flex items-center gap-4">
+        <a href="/index.html" class="hover:underline">App Portal</a>
+        <a href="/delete-account.html" class="hover:underline text-red-600">Account Deletion</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

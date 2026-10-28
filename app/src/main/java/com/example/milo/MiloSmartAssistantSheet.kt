@@ -98,6 +98,7 @@ private val StatusAmber = Color(0xFFD97706)
 fun MiloSmartAssistantSheet(
     viewModel: MainViewModel,
     onDismiss: () -> Unit,
+    initialPrompt: String? = null,
     onNavigateToLeads: () -> Unit = {},
     onNavigateToTasks: () -> Unit = {},
     onNavigateToCalls: () -> Unit = {},
@@ -140,6 +141,8 @@ fun MiloSmartAssistantSheet(
         )
     }
     val chatListState = rememberLazyListState()
+
+
 
     // Voice mode & Mute integration
     val (voiceState, toggleVoice) = rememberMiloVoiceState { recognizedText ->
@@ -225,6 +228,12 @@ fun MiloSmartAssistantSheet(
                 )
             )
             chatListState.animateScrollToItem(chatMessages.size - 1)
+        }
+    }
+
+    LaunchedEffect(initialPrompt) {
+        if (!initialPrompt.isNullOrBlank()) {
+            processSmartCommand(initialPrompt)
         }
     }
 

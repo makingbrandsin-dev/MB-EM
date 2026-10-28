@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.data.model.TaskEntity
 import com.example.ui.components.StandardScreenHeader
+import com.example.ui.components.RechartsTaskPieChartWidget
 import com.example.ui.theme.SurfaceBg
 import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
 import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
@@ -57,8 +58,15 @@ fun ProductivityInsightsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Recharts Pie Chart Section
+            RechartsTaskPieChartWidget(
+                viewModel = viewModel,
+                onNavigateToTasks = onBack
+            )
+
             Card(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Task Completion vs Pending", style = MaterialTheme.typography.titleMedium)

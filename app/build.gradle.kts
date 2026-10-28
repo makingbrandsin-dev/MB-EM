@@ -1,5 +1,6 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.util.Base64
+import java.time.Duration
 
 plugins {
   alias(libs.plugins.android.application)
@@ -18,8 +19,8 @@ android {
     applicationId = "com.aistudio.mbtraker.xpmgaz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -44,11 +45,6 @@ android {
         storePassword = System.getenv("STORE_PASSWORD") ?: "android"
         keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
         keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
-      } else if (debugKsFile.exists()) {
-        storeFile = debugKsFile
-        storePassword = "android"
-        keyAlias = "androiddebugkey"
-        keyPassword = "android"
       }
     }
     create("debugConfig") {
@@ -64,7 +60,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -137,6 +134,7 @@ dependencies {
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.storage)
   implementation(libs.firebase.messaging)
+  implementation(libs.firebase.config)
 
   // Use Firebase Auth and Google Sign-In via Credential Manager:
   implementation(libs.firebase.auth)
@@ -147,7 +145,9 @@ dependencies {
   implementation(libs.androidx.media3.ui)
   implementation(libs.androidx.media3.datasource)
   implementation(libs.androidx.work.runtime.ktx)
+  testImplementation(libs.androidx.work.testing)
   implementation(libs.firebase.appcheck.recaptcha)
+  implementation(libs.firebase.appcheck.playintegrity)
   implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
@@ -175,4 +175,12 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
   implementation(libs.hilt.android)
+}
+
+tasks.withType<Test> {
+  failFast = true
+  timeout.set(Duration.ofMinutes(2))
+  testLogging {
+    events("passed", "failed", "skipped")
+  }
 }

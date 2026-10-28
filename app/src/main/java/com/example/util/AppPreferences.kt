@@ -7,6 +7,7 @@ object AppPreferences {
     private const val KEY_DUMMY_DATA_CLEARED = "dummy_data_cleared"
     private const val KEY_APP_INSTALL_DATE = "app_install_date"
     private const val KEY_ONBOARDING_COMPLETED = "milo_onboarding_completed"
+    private const val KEY_PERMISSIONS_REQUESTED = "permissions_requested"
 
     fun isOnboardingCompleted(context: Context): Boolean {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -17,6 +18,18 @@ object AppPreferences {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_ONBOARDING_COMPLETED, completed)
+            .apply()
+    }
+
+    fun isPermissionsRequested(context: Context): Boolean {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_PERMISSIONS_REQUESTED, false)
+    }
+
+    fun setPermissionsRequested(context: Context, requested: Boolean) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_PERMISSIONS_REQUESTED, requested)
             .apply()
     }
 

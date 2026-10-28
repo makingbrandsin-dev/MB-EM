@@ -63,17 +63,21 @@ fun TasksScreen(
 
     val statusFilters = listOf("All", "Backlog", "In Progress", "Completed")
 
-    val filteredTasks = tasks.filter { task ->
-        val matchesCategory = if (selectedCategoryFilter == "All") true else task.category.equals(selectedCategoryFilter, ignoreCase = true)
-        val matchesStatus = when (selectedStatusFilter) {
-            "Backlog" -> task.status.equals("Backlog", ignoreCase = true)
-            "In Progress" -> task.status.equals("In Progress", ignoreCase = true)
-            "Completed" -> task.isCompleted || task.status.equals("Completed", ignoreCase = true)
-            else -> true
+    val filteredTasks by remember(tasks, selectedCategoryFilter, selectedStatusFilter, selectedScopeTab) {
+        derivedStateOf {
+            tasks.filter { task ->
+                val matchesCategory = if (selectedCategoryFilter == "All") true else task.category.equals(selectedCategoryFilter, ignoreCase = true)
+                val matchesStatus = when (selectedStatusFilter) {
+                    "Backlog" -> task.status.equals("Backlog", ignoreCase = true)
+                    "In Progress" -> task.status.equals("In Progress", ignoreCase = true)
+                    "Completed" -> task.isCompleted || task.status.equals("Completed", ignoreCase = true)
+                    else -> true
+                }
+                val matchesScope = if (selectedScopeTab == 1) task.assignee == "Rahul Sharma" else true
+                matchesCategory && matchesStatus && matchesScope
+            }.sortedByDescending { it.id }
         }
-        val matchesScope = if (selectedScopeTab == 1) task.assignee == "Rahul Sharma" else true
-        matchesCategory && matchesStatus && matchesScope
-    }.sortedByDescending { it.id }
+    }
 
     Scaffold(
         topBar = {

@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == "makingbrands.in@gmail.com" ||
+        request.auth.token.email == "admin@makingbrands.com" ||
+        request.auth.token.admin == true
+      );
+    }
+
+    // Voice notes in team chat
+    match /voice_notes/{channelId}/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() &&
+        request.resource.size <= 10 * 1024 * 1024 &&
+        (request.resource.contentType == "audio/mp4" || request.resource.contentType == "audio/m4a" || request.resource.contentType.matches('audio/.*'));
+      allow delete: if isAdmin();
+    }
+
+    // Promotional Banners
+    match /banners/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() &&
+        request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // App Branding & Custom Logo
+    match /app_branding/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() &&
+        request.resource.size <= 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // Catch-all deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

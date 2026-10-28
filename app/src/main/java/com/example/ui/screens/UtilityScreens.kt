@@ -46,7 +46,8 @@ fun ProfileScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
     onNavigateToSettings: () -> Unit = {},
-    onNavigateToHelp: () -> Unit = {}
+    onNavigateToHelp: () -> Unit = {},
+    onNavigateToPrivacy: () -> Unit = {}
 ) {
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var showDeleteAllFieldsDialog by remember { mutableStateOf(false) }
@@ -674,17 +675,17 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         ProfileFieldRow(Icons.Default.Email, "Email Address", email)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.Phone, "Phone Number", phone)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.ContactPhone, "Emergency Contact", emergencyContact)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.CalendarToday, "Joining Date", joiningDate)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.LocationOn, "Office / Address", address)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.Stars, "Skills", skills)
-                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
                         ProfileFieldRow(Icons.Default.Notes, "Bio / Status", bio)
                     }
                 }
@@ -740,8 +741,10 @@ fun ProfileScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         ProfileNavRow(Icons.Default.Person, "Edit Profile Fields", onClick = { showEditProfileDialog = true })
-                        Divider(color = BorderLight)
+                        HorizontalDivider(color = BorderLight)
                         ProfileNavRow(Icons.Default.Settings, "Settings & Preferences", onClick = onNavigateToSettings)
+                        Divider(color = BorderLight)
+                        ProfileNavRow(Icons.Default.Shield, "Privacy Policy & Data Safety", onClick = onNavigateToPrivacy)
                         Divider(color = BorderLight)
                         ProfileNavRow(Icons.Default.HelpOutline, "Help & Support", onClick = onNavigateToHelp)
                         Divider(color = BorderLight)
@@ -777,7 +780,7 @@ fun ProfileScreen(
                         modifier = Modifier.padding(14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("MB Traker Enterprise Suite", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                        Text("MB EM Employee Suite", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text("Version 5.0.0 (Enterprise Build 500)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BrandBlue)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("Making Brands © 2026. All Systems Operational.", fontSize = 10.sp, color = TextMuted)
@@ -847,16 +850,39 @@ fun NotificationsScreen(
     viewModel: MainViewModel,
     onBack: () -> Unit
 ) {
+    // Step 3: Collect live admin broadcasts and notifications in Jetpack Compose UI
+    val liveBroadcasts by viewModel.liveAdminBroadcasts.collectAsState()
     val notifications by viewModel.notifications.collectAsState()
+    var showSendBroadcastDialog by remember { mutableStateOf(false) }
+
+    if (showSendBroadcastDialog) {
+        AdminBroadcastComposeDialog(
+            onDismiss = { showSendBroadcastDialog = false },
+            onSend = { title, msg, audience, priority ->
+                viewModel.sendAdminBroadcastPushNotification(
+                    title = title,
+                    message = msg,
+                    audience = audience,
+                    priority = priority
+                )
+                showSendBroadcastDialog = false
+            }
+        )
+    }
+
+    val totalAlertsCount = notifications.size + liveBroadcasts.size
 
     Scaffold(
         topBar = {
             StandardScreenHeader(
                 viewModel = viewModel,
-                subMenuTitle = "Notifications",
-                subMenuSubtitle = "${notifications.size} Alerts",
+                subMenuTitle = "Notification Center",
+                subMenuSubtitle = if (liveBroadcasts.isNotEmpty()) "${liveBroadcasts.size} Live Broadcasts • $totalAlertsCount Total" else "$totalAlertsCount Alerts",
                 onBack = onBack,
                 actions = {
+                    IconButton(onClick = { showSendBroadcastDialog = true }) {
+                        Icon(Icons.Default.Campaign, contentDescription = "New Broadcast", tint = ElectricBlue)
+                    }
                     if (notifications.isNotEmpty()) {
                         IconButton(onClick = { viewModel.markAllNotificationsAsRead() }) {
                             Icon(Icons.Default.DoneAll, contentDescription = "Mark all read", tint = ElectricBlue)
@@ -870,7 +896,7 @@ fun NotificationsScreen(
         },
         containerColor = SurfaceBg
     ) { paddingValues ->
-        if (notifications.isEmpty()) {
+        if (notifications.isEmpty() && liveBroadcasts.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -901,10 +927,19 @@ fun NotificationsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "You're all caught up!",
+                        text = "Live snapshot channel is connected to Firestore.",
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { showSendBroadcastDialog = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+                    ) {
+                        Icon(Icons.Default.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Send Test Broadcast", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         } else {
@@ -915,9 +950,165 @@ fun NotificationsScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Real-time live admin broadcasts section (Firestore Snapshot Listener backed)
+                if (liveBroadcasts.isNotEmpty()) {
+                    item(key = "live_broadcast_header") {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFEFF6FF),
+                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(Color(0xFF2563EB), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        "LIVE ADMIN BROADCASTS (${liveBroadcasts.size})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1D4ED8)
+                                    )
+                                }
+                                Text(
+                                    "Firestore addSnapshotListener",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF60A5FA)
+                                )
+                            }
+                        }
+                    }
+
+                    items(liveBroadcasts, key = { "broadcast_${it.id}" }) { broadcast ->
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.5.dp, Color(0xFFFED7AA)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                            modifier = Modifier.fillMaxWidth().animateItem()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFEA580C)
+                                        ) {
+                                            Text(
+                                                "BROADCAST",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFFFF7ED),
+                                            border = BorderStroke(1.dp, Color(0xFFFED7AA))
+                                        ) {
+                                            Text(
+                                                broadcast.audience,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFFC2410C),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = when (broadcast.priority.lowercase()) {
+                                                "urgent" -> Color(0xFFFEE2E2)
+                                                else -> Color(0xFFFEF3C7)
+                                            }
+                                        ) {
+                                            Text(
+                                                broadcast.priority.uppercase(),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = when (broadcast.priority.lowercase()) {
+                                                    "urgent" -> Color(0xFFDC2626)
+                                                    else -> Color(0xFFD97706)
+                                                },
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.deleteBroadcastLog(broadcast.id) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = TextMuted, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = broadcast.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = broadcast.message,
+                                    fontSize = 13.sp,
+                                    color = TextSecondary,
+                                    lineHeight = 18.sp
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "From: ${broadcast.senderName}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted
+                                    )
+                                    Text(
+                                        broadcast.formattedDate.ifBlank { "Live Update" },
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item(key = "divider_after_broadcasts") {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 1.dp,
+                            color = Color(0xFFE2E8F0)
+                        )
+                    }
+                }
+
+                // Standard Notifications
                 items(notifications, key = { it.id }) { item ->
                     AnimatedVisibility(
-                        visible = !item.isRead, // Fade-up disappearance when marked as read
+                        visible = !item.isRead,
                         enter = slideInVertically(initialOffsetY = { -40 }) + fadeIn(),
                         exit = slideOutVertically(targetOffsetY = { -40 }) + fadeOut(),
                         modifier = Modifier.animateItem()
@@ -1696,7 +1887,8 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit = {},
     onNavigateToMiloDebug: () -> Unit = {},
-    onNavigateToMiloOnboarding: () -> Unit = {}
+    onNavigateToMiloOnboarding: () -> Unit = {},
+    onNavigateToPrivacy: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? androidx.fragment.app.FragmentActivity
@@ -2132,11 +2324,10 @@ fun SettingsScreen(
                 }
             }
 
-            // Firestore Cloud Auth Provider & Role Redirection Card
+            // MB EM Cloud Database Connection & Live Sync Card
             item {
                 val currentRoleStr by viewModel.userRole.collectAsState()
                 val firestoreMsg by viewModel.firestoreAuthStatus.collectAsState()
-                val isCurrentAdmin = currentRoleStr.contains("admin", ignoreCase = true) || currentRoleStr.contains("manager", ignoreCase = true)
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -2161,20 +2352,20 @@ fun SettingsScreen(
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column {
-                                    Text("Firestore Auth & Role Provider", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
-                                    Text("Live role sync from collection 'users'", fontSize = 12.sp, color = TextSecondary)
+                                    Text("MB EM Cloud Database", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
+                                    Text("Connected with MB Admin", fontSize = 12.sp, color = TextSecondary)
                                 }
                             }
 
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (isCurrentAdmin) Color(0xFFFEF3C7) else Color(0xFFDCFCE7)
+                                color = Color(0xFFDCFCE7)
                             ) {
                                 Text(
-                                    text = if (isCurrentAdmin) "MB Admin" else "Employee",
+                                    text = "Employee Edition",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isCurrentAdmin) Color(0xFF92400E) else Color(0xFF166534),
+                                    color = Color(0xFF166534),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
@@ -2193,18 +2384,31 @@ fun SettingsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("Active UI Destination:", fontSize = 12.sp, color = TextSecondary)
+                                    Text("Shared Database ID:", fontSize = 11.sp, color = TextSecondary)
                                     Text(
-                                        text = if (isCurrentAdmin) "Admin Dashboard (manager)" else "Employee Workspace (home)",
-                                        fontSize = 12.sp,
+                                        text = "mbtracer-17ce56c4",
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isCurrentAdmin) Color(0xFFB45309) else Color(0xFF15803D)
+                                        color = BrandBlue
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Active Workspace:", fontSize = 11.sp, color = TextSecondary)
+                                    Text(
+                                        text = "Employee ($currentRoleStr)",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF15803D)
                                     )
                                 }
                                 if (firestoreMsg != null) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Cloud Status: $firestoreMsg",
+                                        text = "Status: $firestoreMsg",
                                         fontSize = 10.sp,
                                         color = Color(0xFF64748B)
                                     )
@@ -2214,42 +2418,18 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        Text("Test Dynamic Cloud Role Switching:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
+                        Button(
+                            onClick = {
+                                viewModel.refreshAll()
+                                toastMessage = "Synchronized all data with MB Admin database"
+                            },
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = ButtonPrimary)
                         ) {
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.updateRoleInFirestore("admin") { ok ->
-                                        toastMessage = if (ok) "Updated Firestore role to ADMIN! Next login routes to Admin Dashboard." else "Failed to update Firestore"
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (isCurrentAdmin) Color(0xFFB45309) else TextPrimary
-                                )
-                            ) {
-                                Text("Set Admin in Cloud", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.updateRoleInFirestore("employee") { ok ->
-                                        toastMessage = if (ok) "Updated Firestore role to EMPLOYEE! Next login routes to Employee Workspace." else "Failed to update Firestore"
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = if (!isCurrentAdmin) Color(0xFF15803D) else TextPrimary
-                                )
-                            ) {
-                                Text("Set Employee in Cloud", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
+                            Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sync with MB Admin Database", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -2301,7 +2481,7 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            "FCM delivers real-time notifications even when MB Traker is closed or running in the background.",
+                            "FCM delivers real-time notifications even when MB EM is closed or running in the background.",
                             fontSize = 12.sp,
                             color = Color(0xFF64748B),
                             lineHeight = 16.sp
@@ -2535,6 +2715,15 @@ fun SettingsScreen(
                         Text("Security & Privacy", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary)
                         Spacer(modifier = Modifier.height(10.dp))
 
+                        SettingActionRow(
+                            Icons.Default.Shield,
+                            "Privacy Policy & Data Safety",
+                            "Google Play disclosures & account deletion controls"
+                        ) {
+                            onNavigateToPrivacy()
+                        }
+                        Divider(color = BorderLight, modifier = Modifier.padding(vertical = 8.dp))
+
                         SettingActionRow(Icons.Default.Lock, "Change Password", "Update your account password") {
                             showPasswordDialog = true
                         }
@@ -2544,7 +2733,7 @@ fun SettingsScreen(
                                 com.example.util.BiometricHelper.promptBiometricAuth(
                                     activity = activity,
                                     title = "Enable Biometric Security",
-                                    subtitle = "Authenticate to enable fingerprint/face unlock for MB Traker",
+                                    subtitle = "Authenticate to enable fingerprint/face unlock for MB EM",
                                     onSuccess = {
                                         biometricEnabled = true
                                         com.example.util.BiometricHelper.setBiometricSettingEnabled(context, true)
@@ -2800,7 +2989,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("MB Traker Enterprise Suite", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                        Text("MB EM Employee Suite", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                         Text("Version 5.0.0 (Enterprise Build 500)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = BrandBlue)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text("© 2026 Making Brands. All Rights Reserved.", fontSize = 10.sp, color = TextMuted)

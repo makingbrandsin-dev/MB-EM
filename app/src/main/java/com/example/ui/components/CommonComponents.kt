@@ -147,7 +147,7 @@ fun StandardScreenHeader(
     Column(modifier = Modifier.fillMaxWidth()) {
         // Unified Primary Header (The same header from Home screen for all screens)
         AppHeader(
-            title = "MB Traker",
+            title = "MB EM",
             showBrandLogo = true,
             showSyncIndicator = true,
             onOpenChat = onNavigateToChat,
@@ -304,12 +304,23 @@ fun AppHeader(
                                         }
                                     }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Chat,
-                                        contentDescription = "Team Chat",
-                                        tint = Color(0xFF4A7C59),
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFFE8F0E9), // Light background for circle
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Chat,
+                                                contentDescription = "Team Chat",
+                                                tint = Color(0xFF4A7C59),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -332,12 +343,23 @@ fun AppHeader(
                                         }
                                     }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Notifications,
-                                        contentDescription = "Notifications",
-                                        tint = Color(0xFF705C30),
-                                        modifier = Modifier.size(25.dp)
-                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFFF7F2E8), // Light background for circle
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Notifications,
+                                                contentDescription = "Notifications",
+                                                tint = Color(0xFF705C30),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -3,22 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MB Taker - Enterprise Telemetry & Smart Operations</title>
+  <title>MB EM - Employee Portal & APK Download</title>
   <!-- Browser tab favicon using official Milo brand image -->
   <link rel="icon" type="image/png" href="/milo/Milo_final.png" />
   <link rel="apple-touch-icon" href="/milo/Milo_final.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
     .font-brand { font-family: 'Cinzel', serif; }
     body { font-family: 'Inter', sans-serif; }
+    @keyframes pulse-subtle {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    .animate-download {
+      animation: pulse-subtle 2s infinite ease-in-out;
+    }
   </style>
 </head>
-<body class="bg-[#F9F5EF] text-[#2C2416] min-h-screen flex flex-col antialiased">
+<body class="bg-[#F8F9FC] text-[#1E293B] min-h-screen flex flex-col antialiased">
   
   <!-- Navigation Header with Official Milo Brand Emblem -->
-  <header class="w-full bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between py-3">
+  <header class="w-full bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between py-3">
       
       <!-- Brand Logo & Header Emblem -->
       <div class="flex items-center gap-3.5">
@@ -26,106 +33,197 @@
           <img src="/milo/Milo_final.png" alt="Milo Brand Logo Emblem" class="object-contain w-full h-full" />
         </div>
         <div>
-          <h1 class="font-brand font-bold text-xl text-[#705C30] tracking-wide leading-tight">MB Taker</h1>
-          <p class="text-xs text-slate-500 font-medium tracking-tight">Enterprise Suite & Smart Operations</p>
+          <div class="flex items-center gap-2">
+            <h1 class="font-brand font-bold text-xl text-[#0F172A] tracking-wide leading-tight">MB EM</h1>
+            <span class="bg-indigo-100 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full">Employee Portal</span>
+          </div>
+          <p class="text-xs text-slate-500 font-medium tracking-tight">Making Brands Employee Mobile Suite</p>
         </div>
       </div>
 
-      <!-- Quick Action Badges -->
+      <!-- Header Download Button -->
       <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-2 bg-[#F8E0A8]/30 border border-[#705C30]/20 rounded-full px-3 py-1.5 text-xs font-semibold text-[#705C30]">
-          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Live Realtime Telemetry
-        </div>
-        <div class="w-10 h-10 bg-slate-900 rounded-xl shadow-sm p-1.5 flex items-center justify-center border border-slate-800">
-          <img src="/milo/Milo_final.png" alt="Milo Avatar" class="object-contain w-full h-full" />
-        </div>
+        <a href="/MB_EM.apk" download="MB_EM.apk" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-md transition-all hover:shadow-lg">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          <span>Download APK (38 MB)</span>
+        </a>
       </div>
     </div>
   </header>
 
+  <!-- Dynamic Version Update Notification Banner -->
+  <div id="update-banner" class="hidden bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-3 shadow-md transition-all duration-300">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
+      <div class="flex items-center gap-2.5">
+        <span class="bg-white/20 px-2.5 py-0.5 rounded-full font-bold text-xs uppercase tracking-wide">New Update</span>
+        <span id="update-text">A new version of MB EM is available!</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a id="update-link" href="/MB_EM.apk" download="MB_EM.apk" class="bg-white text-emerald-800 font-bold px-3.5 py-1.5 rounded-xl shadow hover:bg-emerald-50 transition-colors text-xs">
+          Download Update
+        </a>
+        <button onclick="document.getElementById('update-banner').style.display='none'" class="text-white/80 hover:text-white font-bold px-2 py-1 text-xs">
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main Showcase Container -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
     
-    <!-- Hero / Splash Brand Emblem Banner -->
-    <div class="bg-gradient-to-br from-white to-[#F8E0A8]/20 rounded-3xl border border-slate-200/80 shadow-md p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8">
+    <!-- Primary APK Download Card Banner -->
+    <div class="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white rounded-3xl border border-indigo-800/50 shadow-xl p-6 sm:p-10 flex flex-col lg:flex-row items-center justify-between gap-8">
       
-      <!-- Prominent Milo Lion Mascot Container -->
-      <div class="relative group">
-        <div class="w-36 h-36 sm:w-44 sm:h-44 bg-slate-900 rounded-2xl shadow-md p-3.5 flex items-center justify-center border-2 border-slate-700 transition-all duration-300 group-hover:shadow-xl group-hover:border-[#F8E0A8]/50">
-          <img src="/milo/Milo_final.png" alt="Milo Official Mascot" class="object-contain w-full h-full transition-transform duration-300 group-hover:scale-105" />
+      <!-- Left side info -->
+      <div class="space-y-4 max-w-2xl text-center lg:text-left">
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full text-xs font-bold uppercase tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          Ready For Installation · Build Verified
         </div>
-        <div class="absolute -bottom-2 -right-2 bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow border-2 border-white">
-          Active Mascot
+        
+        <h2 class="font-brand font-extrabold text-3xl sm:text-4xl text-white tracking-tight">
+          Download MB EM Android App
+        </h2>
+        
+        <p class="text-indigo-200 text-sm sm:text-base leading-relaxed">
+          Install the official <strong>MB EM</strong> application directly on any Android smartphone. Features employee attendance punch-in/out, live task management with Recharts pie charts, CRM lead tracking, expenses, and instant synchronization with MB Admin.
+        </p>
+
+        <!-- Direct Download Buttons with multiple mirrors for convenience -->
+        <div class="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-4">
+          <a href="/MB_EM.apk" download="MB_EM.apk" class="animate-download inline-flex items-center gap-3 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-bold text-base px-6 py-3.5 rounded-2xl shadow-lg transition-transform hover:scale-105">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            <span>Download MB_EM.apk (38 MB)</span>
+          </a>
+
+          <a href="/app-debug.apk" download="app-debug.apk" class="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-indigo-100 font-semibold text-sm px-4 py-3.5 rounded-2xl border border-white/20 transition-colors">
+            <svg class="w-5 h-5 text-indigo-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <span>Alternate Link (app-debug.apk)</span>
+          </a>
+        </div>
+
+        <!-- Meta specs badge list -->
+        <div class="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs text-indigo-300">
+          <span class="flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Package: <code class="bg-black/30 px-1.5 py-0.5 rounded text-indigo-100">com.example</code>
+          </span>
+          <span class="flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Architecture: universal (arm64, armv7, x86_64)
+          </span>
+          <span class="flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Cloud: Firebase Firestore Active
+          </span>
         </div>
       </div>
 
-      <div class="space-y-3 text-center md:text-left flex-1">
-        <div class="inline-flex items-center gap-2 px-3 py-1 bg-[#705C30]/10 text-[#705C30] rounded-full text-xs font-bold uppercase tracking-wider">
-          Official Brand Identity
+      <!-- Mascot Graphic Right -->
+      <div class="relative flex flex-col items-center">
+        <div class="w-40 h-40 sm:w-48 sm:h-48 bg-slate-900 rounded-3xl shadow-2xl p-4 flex items-center justify-center border-2 border-indigo-400/40">
+          <img src="/milo/Milo_final.png" alt="Milo Official Mascot" class="object-contain w-full h-full" />
         </div>
-        <h2 class="font-brand font-extrabold text-2xl sm:text-3xl text-slate-900">
-          Meet Milo: Your Smart Enterprise Companion
-        </h2>
-        <p class="text-slate-600 text-sm sm:text-base leading-relaxed max-w-2xl">
-          Milo is the official brand mascot and executive AI companion for MB Taker. From automated pipeline insights to hands-free voice operations, attendance tracking, and live deal closing macros, Milo powers your workflow seamlessly.
-        </p>
+        <div class="mt-3 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 text-[11px] font-bold px-3 py-1 rounded-full">
+          Milo AI Companion Ready
+        </div>
       </div>
     </div>
 
-    <!-- Operations Dashboard Cards with Milo Emblem -->
+    <!-- Installation Instructions Guide -->
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
+      <h3 class="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+        <span class="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">?</span>
+        How to Install on Your Android Phone
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold text-sm flex items-center justify-center">1</div>
+          <h4 class="font-bold text-slate-800 text-sm">Download File</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Tap the <strong>Download MB_EM.apk</strong> button above directly on your phone or computer.
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold text-sm flex items-center justify-center">2</div>
+          <h4 class="font-bold text-slate-800 text-sm">Allow Unknown Sources</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            When you open the APK, if Android asks for permission, tap <em>Settings</em> and enable <em>Allow from this source</em> (Standard for apps not installed from Google Play).
+          </p>
+        </div>
+
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+          <div class="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold text-sm flex items-center justify-center">3</div>
+          <h4 class="font-bold text-slate-800 text-sm">Open & Sign In</h4>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Tap <em>Install</em>, open <strong>MB EM</strong>, enter your employee phone number or ID, and enjoy real-time sync with MB Admin!
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Feature Overview Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
       
-      <!-- Card 1: CRM Operations -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between">
+      <!-- Card 1: Recharts Task Analytics -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 bg-slate-900 rounded-2xl shadow-md p-2 flex items-center justify-center border border-slate-700">
-            <img src="/milo/Milo_final.png" alt="Milo CRM Icon" class="object-contain w-full h-full" />
+          <div class="w-12 h-12 bg-indigo-50 rounded-2xl p-2.5 flex items-center justify-center text-indigo-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/><path stroke-linecap="round" stroke-linejoin="round" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/></svg>
           </div>
-          <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-0.5 rounded-full">Active</span>
+          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">New</span>
         </div>
-        <h3 class="font-bold text-base text-slate-900 mb-1">CRM & Lead Pipeline</h3>
-        <p class="text-xs text-slate-500 mb-3">Instant lead capture, WhatsApp brochure dispatch & voice analysis.</p>
-        <div class="text-xs font-bold text-[#705C30] mt-auto">Live Sync Active →</div>
+        <h3 class="font-bold text-base text-slate-900 mb-1">Recharts Task Pie Chart</h3>
+        <p class="text-xs text-slate-500 mb-3">Live visualization of Completed vs. Pending tasks with instant status breakdowns.</p>
+        <div class="text-xs font-bold text-indigo-600 mt-auto">Built In App →</div>
       </div>
 
-      <!-- Card 2: Task Workflows -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between">
+      <!-- Card 2: Attendance Tracking -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 bg-slate-900 rounded-2xl shadow-md p-2 flex items-center justify-center border border-slate-700">
-            <img src="/milo/Milo_final.png" alt="Milo Task Icon" class="object-contain w-full h-full" />
+          <div class="w-12 h-12 bg-emerald-50 rounded-2xl p-2.5 flex items-center justify-center text-emerald-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
-          <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-0.5 rounded-full">Pending</span>
-        </div>
-        <h3 class="font-bold text-base text-slate-900 mb-1">Task Management</h3>
-        <p class="text-xs text-slate-500 mb-3">AI task decomposition, priority badges & milestone trackers.</p>
-        <div class="text-xs font-bold text-[#705C30] mt-auto">View Kanban →</div>
-      </div>
-
-      <!-- Card 3: Realtime Attendance -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between">
-        <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 bg-slate-900 rounded-2xl shadow-md p-2 flex items-center justify-center border border-slate-700">
-            <img src="/milo/Milo_final.png" alt="Milo Attendance Icon" class="object-contain w-full h-full" />
-          </div>
-          <span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full">Verified</span>
+          <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">GPS</span>
         </div>
         <h3 class="font-bold text-base text-slate-900 mb-1">Smart Attendance</h3>
-        <p class="text-xs text-slate-500 mb-3">Geofenced GPS punch-in, tea break timer & offline Room caching.</p>
-        <div class="text-xs font-bold text-[#705C30] mt-auto">Check Status →</div>
+        <p class="text-xs text-slate-500 mb-3">Geofenced GPS punch in/out, break tracking, and offline local caching.</p>
+        <div class="text-xs font-bold text-emerald-600 mt-auto">Realtime Sync →</div>
       </div>
 
-      <!-- Card 4: Team Operations Chat -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col justify-between">
+      <!-- Card 3: CRM & Leads -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
         <div class="flex items-center justify-between mb-4">
-          <div class="w-12 h-12 bg-slate-900 rounded-2xl shadow-md p-2 flex items-center justify-center border border-slate-700">
-            <img src="/milo/Milo_final.png" alt="Milo Team Chat Icon" class="object-contain w-full h-full" />
+          <div class="w-12 h-12 bg-amber-50 rounded-2xl p-2.5 flex items-center justify-center text-amber-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
           </div>
-          <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-0.5 rounded-full">Team</span>
+          <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded-full">CRM</span>
         </div>
-        <h3 class="font-bold text-base text-slate-900 mb-1">Team Operations Chat</h3>
-        <p class="text-xs text-slate-500 mb-3">Realtime channels, mentions, and instant audio notifications.</p>
-        <div class="text-xs font-bold text-[#705C30] mt-auto">Open Channels →</div>
+        <h3 class="font-bold text-base text-slate-900 mb-1">CRM Lead Pipeline</h3>
+        <p class="text-xs text-slate-500 mb-3">Instant lead intake, WhatsApp brochure sharing, and meeting management.</p>
+        <div class="text-xs font-bold text-amber-600 mt-auto">Connected →</div>
+      </div>
+
+      <!-- Card 4: Milo Assistant -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between mb-4">
+          <div class="w-12 h-12 bg-purple-50 rounded-2xl p-2.5 flex items-center justify-center text-purple-600">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          </div>
+          <span class="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-0.5 rounded-full">AI</span>
+        </div>
+        <h3 class="font-bold text-base text-slate-900 mb-1">Milo Executive Companion</h3>
+        <p class="text-xs text-slate-500 mb-3">Lion mascot animations, motivation quotes, and smart enterprise productivity aids.</p>
+        <div class="text-xs font-bold text-purple-600 mt-auto">Active →</div>
       </div>
     </div>
   </main>
@@ -137,10 +235,43 @@
         <div class="w-6 h-6 bg-slate-900 rounded-lg p-1 flex items-center justify-center">
           <img src="/milo/Milo_final.png" alt="Milo" class="object-contain w-full h-full" />
         </div>
-        <span>© 2026 Making Brands Enterprise Suite. Powered by Milo.</span>
+        <span>© 2026 Making Brands Enterprise Suite. MB EM Mobile Client.</span>
       </div>
-      <div>Track · Manage · Grow</div>
+      <div class="flex items-center gap-4">
+        <a href="/privacy.html" class="text-slate-600 hover:text-indigo-600 hover:underline">Privacy Policy</a>
+        <a href="/delete-account.html" class="text-slate-600 hover:text-red-600 hover:underline">Account Deletion</a>
+        <a href="/MB_EM.apk" download="MB_EM.apk" class="text-indigo-600 hover:underline font-semibold">Download APK</a>
+      </div>
     </div>
   </footer>
+  <script>
+    // Fetch latest version info from version.json and compare against currently displayed version (1.0)
+    async function checkLatestAppVersion() {
+      try {
+        const res = await fetch('/version.json?t=' + Date.now());
+        if (!res.ok) return;
+        const data = await res.json();
+        const currentDisplayedVersion = "1.0";
+
+        if (data.versionName && data.versionName !== currentDisplayedVersion) {
+          const banner = document.getElementById('update-banner');
+          const updateText = document.getElementById('update-text');
+          const updateLink = document.getElementById('update-link');
+
+          if (banner && updateText) {
+            updateText.innerHTML = `New MB EM version <strong>v${data.versionName}</strong> is available (Released: ${data.releaseDate || 'Recent'}). <em>${data.changelog || ''}</em>`;
+            if (data.apkUrl && updateLink) {
+              updateLink.href = data.apkUrl;
+              updateLink.setAttribute('download', data.apkUrl.split('/').pop() || 'MB_EM.apk');
+            }
+            banner.classList.remove('hidden');
+          }
+        }
+      } catch (e) {
+        console.log('Version check offline or unavailable:', e);
+      }
+    }
+    document.addEventListener('DOMContentLoaded', checkLatestAppVersion);
+  </script>
 </body>
 </html>

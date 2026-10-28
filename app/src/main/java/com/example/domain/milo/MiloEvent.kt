@@ -2,7 +2,7 @@ package com.example.domain.milo
 
 /**
  * Event-driven architecture triggers for Milo.
- * Every user action or system update in MB Tracker emits a typed MiloEvent.
+ * Every user action or system update in MB EM emits a typed MiloEvent.
  */
 sealed class MiloEvent {
     data object AppOpened : MiloEvent()

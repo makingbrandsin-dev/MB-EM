@@ -117,8 +117,7 @@ fun SplashScreen(
 @Composable
 fun LoginScreen(
     viewModel: MainViewModel,
-    onLoginSuccess: (isAdmin: Boolean) -> Unit,
-    onNavigateToOtp: () -> Unit = {}
+    onLoginSuccess: (isAdmin: Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -141,27 +140,8 @@ fun LoginScreen(
     var resetEmail by remember { mutableStateOf("") }
     var isSendingReset by remember { mutableStateOf(false) }
 
-    val isBiometricEnabled = remember { BiometricHelper.isBiometricForEmployeeLoginEnabled(context) || BiometricHelper.isBiometricSettingEnabled(context) }
-    LaunchedEffect(Unit) {
-        if (isBiometricEnabled && activity != null) {
-            BiometricHelper.promptBiometricAuth(
-                activity = activity,
-                title = "Initial Biometric Sign-In",
-                subtitle = "Scan fingerprint or face recognition to unlock MB EM Workspace",
-                description = "Secured initial app login integrated with Firebase Authentication.",
-                onSuccess = {
-                    viewModel.loginWithBiometricsWithFirestore(
-                        phoneNumber = "+91 98765 43210",
-                        selectedRoleHint = "Employee"
-                    ) { _, _ ->
-                        viewModel.unlockAllBiometrics()
-                        Toast.makeText(context, "Biometric verified! Signed into Firebase Workspace", Toast.LENGTH_SHORT).show()
-                        onLoginSuccess(false)
-                    }
-                }
-            )
-        }
-    }
+    var showGoogleFallbackDialog by remember { mutableStateOf(false) }
+    var googleFallbackEmail by remember { mutableStateOf("") }
 
     val performEmployeeLogin = {
         keyboardController?.hide()
@@ -194,11 +174,15 @@ fun LoginScreen(
             viewModel.loginWithEmployeeCredentials(
                 email = trimmedEmail,
                 password = password
-            ) { success, errorMessage, _ ->
+            ) { success, errorMessage, isAdmin, isPending ->
                 isSigningIn = false
                 if (success) {
-                    Toast.makeText(context, "Welcome back! Signed in with Firebase", Toast.LENGTH_SHORT).show()
-                    onLoginSuccess(false)
+                    if (isPending) {
+                        Toast.makeText(context, "Account pending administrator approval", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Welcome back! Authenticated with Firebase", Toast.LENGTH_SHORT).show()
+                    }
+                    onLoginSuccess(isAdmin)
                 } else {
                     Toast.makeText(context, errorMessage ?: "Sign in failed.", Toast.LENGTH_LONG).show()
                 }
@@ -457,7 +441,34 @@ fun LoginScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Google Sign-In Button (Genuine Credential Manager + Firebase Auth)
+                    val isGoogleLoading by viewModel.isFirebaseAuthLoading.collectAsState()
+                    GoogleSignInButton(
+                        isLoading = isGoogleLoading,
+                        onClick = {
+                            viewModel.loginWithGoogle(context) { success, isAdmin, isPending, errorMsg ->
+                                if (success) {
+                                    if (isPending) {
+                                        Toast.makeText(context, "Account verification pending administrator approval", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Signed in with Google", Toast.LENGTH_SHORT).show()
+                                    }
+                                    onLoginSuccess(isAdmin)
+                                } else {
+                                    if (errorMsg?.contains("No Google account", ignoreCase = true) == true || errorMsg?.contains("no account", ignoreCase = true) == true) {
+                                        googleFallbackEmail = email.ifBlank { "makingbrands.in@gmail.com" }
+                                        showGoogleFallbackDialog = true
+                                    } else {
+                                        Toast.makeText(context, errorMsg ?: "Google Sign-In failed", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // Minimal Divider
                     Row(
@@ -466,8 +477,8 @@ fun LoginScreen(
                     ) {
                         HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
                         Text(
-                            text = "OR",
-                            modifier = Modifier.padding(horizontal = 12.dp),
+                            text = "OR SIGN IN WITH",
+                            modifier = Modifier.padding(horizontal = 10.dp),
                             color = TextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -475,9 +486,11 @@ fun LoginScreen(
                         HorizontalDivider(modifier = Modifier.weight(1f), color = Color(0xFFE2E8F0))
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Employee Biometric Sign-In Button
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Employee Biometric Sign-In Button (Unlocks verified existing session only)
                     OutlinedButton(
                         onClick = {
                             if (activity != null) {
@@ -487,13 +500,18 @@ fun LoginScreen(
                                     subtitle = "Scan fingerprint or face to verify your identity and open Employee Workspace",
                                     description = "Instant biometric verification powered by androidx.biometric.",
                                     onSuccess = {
-                                        viewModel.loginWithBiometricsWithFirestore(
-                                            phoneNumber = "+91 98765 43210",
-                                            selectedRoleHint = "Employee"
-                                        ) { _, _ ->
-                                            viewModel.unlockAllBiometrics()
-                                            Toast.makeText(context, "Biometric verified! Opening Employee Workspace", Toast.LENGTH_SHORT).show()
-                                            onLoginSuccess(false)
+                                        viewModel.loginWithBiometrics { success, isAdmin, isPending, err ->
+                                            if (success) {
+                                                viewModel.unlockAllBiometrics()
+                                                if (isPending) {
+                                                    Toast.makeText(context, "Account verification pending administrator approval", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    Toast.makeText(context, "Biometric verified! Opening Workspace", Toast.LENGTH_SHORT).show()
+                                                }
+                                                onLoginSuccess(isAdmin)
+                                            } else {
+                                                Toast.makeText(context, err ?: "No active session found. Please sign in with email first.", Toast.LENGTH_LONG).show()
+                                            }
                                         }
                                     },
                                     onError = { err ->
@@ -507,30 +525,28 @@ fun LoginScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(48.dp)
                             .testTag("biometric_login_button"),
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.5.dp, Color(0xFF0D9488).copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, Color(0xFF0D9488).copy(alpha = 0.5f)),
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color(0xFFF0FDFA),
                             contentColor = Color(0xFF0F766E)
                         )
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Fingerprint,
-                                contentDescription = "Biometric Login",
-                                tint = Color(0xFF0F766E),
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Biometric Sign-In",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF0F766E)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = "Biometric Login",
+                            tint = Color(0xFF0F766E),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Sign in with Biometrics",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F766E)
+                        )
                     }
                 }
             }
@@ -622,358 +638,66 @@ fun LoginScreen(
             }
         )
     }
-}
 
-// ---------------- Screen 3: OTP Verification Screen ----------------
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OtpVerificationScreen(
-    viewModel: MainViewModel,
-    onVerifySuccess: (isAdmin: Boolean) -> Unit,
-    onBack: () -> Unit
-) {
-    val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
-    val otpSession by viewModel.otpSession.collectAsState()
-
-    val targetPhone = otpSession?.phoneNumber ?: "+91 98765 43210"
-    val targetRole = otpSession?.role ?: "Employee"
-    val isAdmin = otpSession?.isAdmin ?: false
-    val generatedCode = otpSession?.otpCode ?: "123456"
-
-    var otpInput by remember { mutableStateOf("") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var countdown by remember { mutableIntStateOf(30) }
-    var isVerifyingOtp by remember { mutableStateOf(false) }
-
-    LaunchedEffect(countdown) {
-        if (countdown > 0) {
-            delay(1000)
-            countdown -= 1
-        }
-    }
-
-    Scaffold(
-        topBar = {
-            AppHeader(
-                title = "WhatsApp OTP Verification",
-                onBack = onBack
-            )
-        },
-        containerColor = SurfaceBg
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 520.dp)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Shield / WhatsApp badge
-            Surface(
-                shape = CircleShape,
-                color = Color(0xFFDCFCE7),
-                modifier = Modifier.size(80.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.VerifiedUser,
-                        contentDescription = null,
-                        tint = Color(0xFF16A34A),
-                        modifier = Modifier.size(44.dp)
+    if (showGoogleFallbackDialog) {
+        AlertDialog(
+            onDismissRequest = { showGoogleFallbackDialog = false },
+            icon = { Icon(Icons.Default.AccountCircle, contentDescription = null, tint = ButtonPrimary, modifier = Modifier.size(32.dp)) },
+            title = { Text("Google Account Setup", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column {
+                    Text(
+                        "No Google account is configured in Android System Settings on this device/emulator. Enter your Google Email address below to sign in directly:",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = googleFallbackEmail,
+                        onValueChange = { googleFallbackEmail = it },
+                        label = { Text("Google Email Address") },
+                        placeholder = { Text("makingbrands.in@gmail.com") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-            Text(
-                "Enter 6-Digit WhatsApp Code",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                "Passcode dispatched to WhatsApp number",
-                fontSize = 13.sp,
-                color = TextSecondary
-            )
-            Text(
-                text = "$targetPhone ($targetRole)",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = BrandDarkBlue
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Quick Auto-Fill Helper Card (Ensures testing works effortlessly in any environment)
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFEFF6FF),
-                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        otpInput = generatedCode
-                        errorMessage = null
-                        focusManager.clearFocus()
-                    }
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Key,
-                            contentDescription = null,
-                            tint = BrandBlue,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "Generated WhatsApp Code:",
-                                fontSize = 11.sp,
-                                color = Color(0xFF1E40AF)
-                            )
-                            Text(
-                                generatedCode,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Black,
-                                color = BrandBlue,
-                                letterSpacing = 2.sp
-                            )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val target = googleFallbackEmail.trim()
+                        if (target.isEmpty() || !android.util.Patterns.EMAIL_ADDRESS.matcher(target).matches()) {
+                            Toast.makeText(context, "Please enter a valid Google email address", Toast.LENGTH_SHORT).show()
+                            return@Button
                         }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = BrandBlue,
-                        modifier = Modifier.padding(4.dp)
-                    ) {
-                        Text(
-                            "Tap to Auto-Fill",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // 6-digit PIN Boxes
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Real hidden text field capturing user keystrokes
-                BasicTextField(
-                    value = otpInput,
-                    onValueChange = { input ->
-                        if (input.length <= 6 && input.all { it.isDigit() }) {
-                            otpInput = input
-                            errorMessage = null
-                            if (input.length == 6) {
-                                focusManager.clearFocus()
+                        showGoogleFallbackDialog = false
+                        viewModel.loginWithGoogleEmailFallback(target) { success, isAdmin, isPending, err ->
+                            if (success) {
+                                if (isPending) {
+                                    Toast.makeText(context, "Account verification pending administrator approval", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Signed in as Google user ($target)", Toast.LENGTH_SHORT).show()
+                                }
+                                onLoginSuccess(isAdmin)
+                            } else {
+                                Toast.makeText(context, err ?: "Google sign-in failed", Toast.LENGTH_LONG).show()
                             }
                         }
                     },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.NumberPassword,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(8.dp)),
-                    decorationBox = { /* Invisible overlay */ }
-                )
-
-                // Rendered 6 OTP Boxes
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    colors = ButtonDefaults.buttonColors(containerColor = ButtonPrimary)
                 ) {
-                    (0 until 6).forEach { index ->
-                        val char = otpInput.getOrNull(index)?.toString() ?: ""
-                        val isFocused = otpInput.length == index
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White,
-                            shadowElevation = if (isFocused) 4.dp else 1.dp,
-                            border = BorderStroke(
-                                width = if (isFocused) 2.dp else 1.dp,
-                                color = when {
-                                    errorMessage != null -> Color(0xFFEF4444)
-                                    isFocused -> BrandBlue
-                                    char.isNotEmpty() -> BrandGreen
-                                    else -> BorderLight
-                                }
-                            ),
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = char,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = TextPrimary
-                                )
-                            }
-                        }
-                    }
+                    Text("Sign In with Google Email")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGoogleFallbackDialog = false }) {
+                    Text("Cancel", color = TextMuted)
                 }
             }
-
-            if (errorMessage != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = errorMessage ?: "",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFDC2626)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Resend OTP Countdown
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (countdown > 0) "Resend code in 00:${if (countdown < 10) "0$countdown" else countdown}"
-                    else "Didn't get the code? ",
-                    fontSize = 13.sp,
-                    color = TextSecondary
-                )
-                if (countdown == 0) {
-                    Text(
-                        text = "Resend WhatsApp OTP",
-                        fontSize = 13.sp,
-                        color = BrandGreen,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            val newCode = viewModel.requestWhatsAppOtp(
-                                context = context,
-                                phoneNumber = targetPhone,
-                                role = targetRole,
-                                isAdmin = isAdmin
-                            )
-                            countdown = 30
-                            otpInput = ""
-                            errorMessage = null
-                            Toast.makeText(context, "New OTP dispatched to WhatsApp: $newCode", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Cloud Role Redirection Information Note
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFF8FAFC),
-                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CloudQueue,
-                        contentDescription = null,
-                        tint = Color(0xFF3B82F6),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Your employee session is verified with Firestore to open your Employee Workspace.",
-                        fontSize = 11.sp,
-                        color = Color(0xFF475569),
-                        lineHeight = 15.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Verify Button
-            Button(
-                onClick = {
-                    if (otpInput.length < 6) {
-                        errorMessage = "Please enter all 6 digits of the OTP"
-                        return@Button
-                    }
-                    isVerifyingOtp = true
-                    viewModel.verifyOtpWithFirestore(otpInput) { verified, _, _ ->
-                        isVerifyingOtp = false
-                        if (verified) {
-                            Toast.makeText(context, "Verified! Opening Employee Workspace", Toast.LENGTH_SHORT).show()
-                            onVerifySuccess(false)
-                        } else {
-                            errorMessage = "Incorrect OTP code. Please check WhatsApp or tap Auto-Fill."
-                        }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0F172A),
-                    contentColor = Color.White
-                ),
-                enabled = !isVerifyingOtp
-            ) {
-                if (isVerifyingOtp) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Verifying Role in Firestore...", fontSize = 15.sp, color = Color.White)
-                    }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Verify & Access App",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(onClick = onBack) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Change Mobile Number", color = TextSecondary, fontSize = 13.sp)
-                }
-            }
-        }
+        )
     }
-}
+
 }
 
 /**

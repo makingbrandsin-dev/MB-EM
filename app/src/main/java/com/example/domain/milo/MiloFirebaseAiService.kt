@@ -3,6 +3,7 @@ package com.example.domain.milo
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.generationConfig
+import com.google.firebase.remoteconfig.remoteConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -39,7 +40,7 @@ class MiloFirebaseAiService {
         attendanceStatus: String = "Checked In"
     ): MiloAiResponse = withContext(Dispatchers.IO) {
         val systemInstruction = """
-            You are Milo, the friendly, energetic, and smart lion mascot and CRM AI assistant for Making Brands (MB Tracker).
+            You are Milo, the friendly, energetic, and smart lion mascot and CRM AI assistant for Making Brands (MB EM).
             Your job is to analyze CRM pipeline queries, employee workflows, and lead updates, and return a structured response.
             
             Always return a strict JSON object with the following schema:
@@ -67,7 +68,7 @@ class MiloFirebaseAiService {
         try {
             // Initialize FirebaseAI GenerativeModel with supported model
             val generativeModel = Firebase.ai.generativeModel(
-                modelName = "gemini-2.5-flash",
+                modelName = Firebase.remoteConfig.getString("milo_gemini_model"),
                 generationConfig = generationConfig {
                     responseMimeType = "application/json"
                     temperature = 0.4f
@@ -176,7 +177,7 @@ class MiloFirebaseAiService {
             )
             else -> Quadruple(
                 MiloState.THINKING,
-                "💡 \"Analyzing: '$prompt' for MB Tracker...\"",
+                "💡 \"Analyzing: '$prompt' for MB EM...\"",
                 "Synthesized CRM insights and recommended next action.",
                 "View Leads"
             )
@@ -216,13 +217,13 @@ class MiloFirebaseAiService {
     ): String = withContext(Dispatchers.IO) {
         try {
             val generativeModel = Firebase.ai.generativeModel(
-                modelName = "gemini-2.5-flash",
+                modelName = Firebase.remoteConfig.getString("milo_gemini_model"),
                 generationConfig = generationConfig {
                     temperature = 0.5f
                 }
             )
             val prompt = """
-                Generate a concise, professional 1-2 sentence business/sales summary of a $durationText phone conversation with $contactName ($phoneNumber). 
+                Generate a concise, professional 1-2 sentence business/sales summary of a $durationText phone conversation with $contactName. 
                 The call type was $callType.
                 Include a logical business next step (e.g. follow-up proposal, WhatsApp dispatch, scheduled callback) based on standard CRM sales practices.
                 Ensure the response is extremely concise and friendly.

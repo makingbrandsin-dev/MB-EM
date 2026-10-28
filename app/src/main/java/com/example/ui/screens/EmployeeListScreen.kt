@@ -97,37 +97,20 @@ fun EmployeeListScreen(
                 onNavigateToProfile = onNavigateToProfile,
                 actions = {
                     IconButton(
-                        onClick = { showAddEmployeeDialog = true },
-                        modifier = Modifier.testTag("add_employee_top_button")
+                        onClick = {
+                            viewModel.refreshAll()
+                            Toast.makeText(context, "Syncing team directory with MB Admin...", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.testTag("sync_employees_button")
                     ) {
                         Icon(
-                            Icons.Default.PersonAdd,
-                            contentDescription = "Add Employee",
+                            Icons.Default.Sync,
+                            contentDescription = "Sync Directory",
                             tint = BrandBlue
                         )
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddEmployeeDialog = true },
-                containerColor = BrandBlue,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .testTag("add_employee_fab")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Employee")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Add Member", fontWeight = FontWeight.Bold)
-                }
-            }
         },
         containerColor = SurfaceBg
     ) { paddingValues ->
@@ -349,10 +332,6 @@ fun EmployeeListScreen(
                         onClick = {
                             selectedEmployeeForDetail = employee
                             onEmployeeClick?.invoke(employee.id)
-                        },
-                        onDelete = {
-                            viewModel.deleteEmployee(employee)
-                            Toast.makeText(context, "Removed ${employee.name}", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -364,12 +343,7 @@ fun EmployeeListScreen(
     selectedEmployeeForDetail?.let { emp ->
         EmployeeDetailDialog(
             employee = emp,
-            onDismiss = { selectedEmployeeForDetail = null },
-            onDelete = {
-                viewModel.deleteEmployee(emp)
-                selectedEmployeeForDetail = null
-                Toast.makeText(context, "Removed ${emp.name}", Toast.LENGTH_SHORT).show()
-            }
+            onDismiss = { selectedEmployeeForDetail = null }
         )
     }
 
@@ -397,11 +371,9 @@ fun EmployeeListScreen(
 @Composable
 private fun EmployeeCard(
     employee: EmployeeEntity,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -541,47 +513,15 @@ private fun EmployeeCard(
                         Icon(Icons.Default.Email, contentDescription = "Email", tint = BrandBlue, modifier = Modifier.size(18.dp))
                     }
                 }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(
-                        onClick = { showDeleteConfirm = true }
-                    ) {
-                        Text("Delete", color = StatusRed, fontSize = 12.sp)
-                    }
-                }
             }
         }
-    }
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Remove Employee") },
-            text = { Text("Are you sure you want to remove ${employee.name} from the directory?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onDelete()
-                    }
-                ) {
-                    Text("Delete", color = StatusRed)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 }
 
 @Composable
 private fun EmployeeDetailDialog(
     employee: EmployeeEntity,
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit
+    onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,

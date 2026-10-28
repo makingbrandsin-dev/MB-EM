@@ -1,0 +1,417 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Employee or user account profile record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user or employee identifier" },
+        "name": { "type": "string", "description": "Full name of the employee" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "phone": { "type": "string", "description": "Primary contact telephone number" },
+        "phoneNumber": { "type": "string", "description": "Contact telephone number" },
+        "designation": { "type": "string", "description": "Job title or designation" },
+        "department": { "type": "string", "description": "Assigned organizational department" },
+        "role": { "type": "string", "enum": ["employee", "admin", "manager", "developer"], "description": "Role string" },
+        "orgId": { "type": "string", "description": "Organization multi-tenant identifier" },
+        "status": { "type": "string", "enum": ["ACTIVE", "ON_LEAVE", "INACTIVE", "PENDING"], "description": "Account status" },
+        "password": { "type": "string", "description": "Encrypted or assigned login password" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp when account was created" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp when account was updated" }
+      },
+      "required": ["email", "name"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Trusted server-controlled administrator role document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Administrator UID" },
+        "email": { "type": "string", "format": "email", "description": "Administrator email address" },
+        "orgId": { "type": "string", "description": "Organization ID" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Organization": {
+      "title": "Organization",
+      "description": "Multi-tenant organization boundary entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Organization unique identifier" },
+        "name": { "type": "string", "description": "Organization company name" },
+        "adminUid": { "type": "string", "description": "Primary administrator UID" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Employee daily attendance and clocking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Attendance record identifier" },
+        "userId": { "type": "string", "description": "Employee UID or email key" },
+        "orgId": { "type": "string", "description": "Organization identifier" },
+        "date": { "type": "string", "description": "Formatted date string (yyyy-MM-dd)" },
+        "clockInTime": { "type": "string", "description": "Clock in time text" },
+        "clockOutTime": { "type": "string", "description": "Clock out time text" },
+        "status": { "type": "string", "description": "Attendance status (PRESENT, LATE, ABSENT)" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId"]
+    },
+    "ClockEvent": {
+      "title": "ClockEvent",
+      "description": "Individual clock-in or clock-out event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "type": { "type": "string", "enum": ["CLOCK_IN", "CLOCK_OUT"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type"]
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "Sales lead document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "title": { "type": "string" },
+        "clientName": { "type": "string" },
+        "value": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Enterprise project entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "name": { "type": "string" },
+        "clientName": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Employee assigned task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "assignee": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Team chat message entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "channelId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "messageText": { "type": "string" },
+        "attachmentFileName": { "type": "string" },
+        "attachmentFileSize": { "type": "string" },
+        "audioPath": { "type": "string" },
+        "audioDurationSeconds": { "type": "number" },
+        "isVoiceMessage": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["channelId", "senderName"]
+    },
+    "LeaveApplication": {
+      "title": "LeaveApplication",
+      "description": "Employee leave request document",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "leaveType": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "leaveType"]
+    },
+    "Holiday": {
+      "title": "Holiday",
+      "description": "Company holiday schedule item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["title", "date"]
+    },
+    "ShiftSchedule": {
+      "title": "ShiftSchedule",
+      "description": "Employee shift assignment record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "orgId": { "type": "string" },
+        "shiftName": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" }
+      },
+      "required": ["userId", "shiftName"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Billing invoice entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["invoiceNumber", "clientName"]
+    },
+    "Quotation": {
+      "title": "Quotation",
+      "description": "Sales estimate quotation entity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orgId": { "type": "string" },
+        "quotationNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["quotationNumber", "clientName"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "System branding and MIO video configuration settings",
+      "type": "object",
+      "properties": {
+        "appLogoUrl": { "type": "string" },
+        "bgHexColor": { "type": "string" },
+        "miloUrlWelcome": { "type": "string" },
+        "miloUrlWorking": { "type": "string" },
+        "miloUrlThinking": { "type": "string" },
+        "miloUrlCelebration": { "type": "string" },
+        "miloUrlLeadImported": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MioVideo": {
+      "title": "MioVideo",
+      "description": "Custom MIO status video record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "state": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["videoUrl"]
+    },
+    "ActivityFeedItem": {
+      "title": "ActivityFeedItem",
+      "description": "Company activity feed post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorRole": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content"]
+    },
+    "Broadcast": {
+      "title": "Broadcast",
+      "description": "Admin system broadcast alert",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "audience": { "type": "string" },
+        "priority": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message"]
+    },
+    "FcmToken": {
+      "title": "FcmToken",
+      "description": "Device FCM push notification registration token",
+      "type": "object",
+      "properties": {
+        "token": { "type": "string" },
+        "userId": { "type": "string" },
+        "platform": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["token"]
+    },
+    "UserActivity": {
+      "title": "UserActivity",
+      "description": "Audit trail log of user activity",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "activityType": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "activityType"]
+    },
+    "AppUpdate": {
+      "title": "AppUpdate",
+      "description": "Latest release update configuration",
+      "type": "object",
+      "properties": {
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "number" },
+        "updateUrl": { "type": "string" },
+        "isMandatory": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["versionName", "updateUrl"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile records"
+    },
+    "/employees/{employeeId}": {
+      "schema": "User",
+      "description": "Employee roster records"
+    },
+    "/admins/{adminId}": {
+      "schema": "Admin",
+      "description": "Server-controlled admin membership documents"
+    },
+    "/organizations/{orgId}": {
+      "schema": "Organization",
+      "description": "Multi-tenant organization boundary records"
+    },
+    "/attendance_records/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Daily employee attendance logs"
+    },
+    "/clock_events/{eventId}": {
+      "schema": "ClockEvent",
+      "description": "Individual clock events"
+    },
+    "/leads/{leadId}": {
+      "schema": "Lead",
+      "description": "Sales leads"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Enterprise projects"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Project tasks"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Team chat messages"
+    },
+    "/team_chat/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Team chat channel messages"
+    },
+    "/leave_applications/{leaveId}": {
+      "schema": "LeaveApplication",
+      "description": "Employee leave requests"
+    },
+    "/holidays/{holidayId}": {
+      "schema": "Holiday",
+      "description": "Company holiday schedules"
+    },
+    "/shift_schedules/{shiftId}": {
+      "schema": "ShiftSchedule",
+      "description": "Shift schedules"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Billing invoices"
+    },
+    "/quotations/{quotationId}": {
+      "schema": "Quotation",
+      "description": "Sales quotations"
+    },
+    "/app_config/{configId}": {
+      "schema": "AppConfig",
+      "description": "Branding and MIO video settings"
+    },
+    "/mio_videos/{videoId}": {
+      "schema": "MioVideo",
+      "description": "MIO custom video state records"
+    },
+    "/milo_videos/{videoId}": {
+      "schema": "MioVideo",
+      "description": "Milo custom video state records"
+    },
+    "/activity_feed_items/{itemId}": {
+      "schema": "ActivityFeedItem",
+      "description": "Company activity feeds"
+    },
+    "/admin_broadcasts/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Admin system broadcasts"
+    },
+    "/PushBroadcasts/{broadcastId}": {
+      "schema": "Broadcast",
+      "description": "Unified push broadcast collection"
+    },
+    "/fcm_tokens/{tokenId}": {
+      "schema": "FcmToken",
+      "description": "FCM registration tokens"
+    },
+    "/user_activities/{activityId}": {
+      "schema": "UserActivity",
+      "description": "Audit trail log records"
+    },
+    "/app_updates/{updateId}": {
+      "schema": "AppUpdate",
+      "description": "App version update manifests"
+    }
+  }
+}

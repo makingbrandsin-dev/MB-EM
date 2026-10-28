@@ -34,7 +34,15 @@ import com.example.ui.theme.*
 import com.example.util.LocationHelper
 import com.example.util.WhatsAppHelper
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Locale
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.example.ui.components.PermissionDisclosureDialog
 
 // ==========================================
 // 1. GEOFENCE & SELFIE PUNCH-IN DIALOG
@@ -49,7 +57,92 @@ fun GeofenceSelfiePunchDialog(
         mutableStateOf(LocationHelper.verifyOfficeGeofence(context))
     }
     var selfieCaptured by remember { mutableStateOf(false) }
-    var isCheckingLocation by remember { mutableStateOf(false) }
+    var selfieBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showLocationDisclosure by remember { mutableStateOf(false) }
+    var showCameraDisclosure by remember { mutableStateOf(false) }
+
+    val hasLocPermission = LocationHelper.hasLocationPermission(context)
+    val hasCamPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.CAMERA
+    ) == PackageManager.PERMISSION_GRANTED
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            geofenceResult = LocationHelper.verifyOfficeGeofence(context)
+            Toast.makeText(context, "Location verified", Toast.LENGTH_SHORT).show()
+        } else {
+            geofenceResult = LocationHelper.verifyOfficeGeofence(context)
+            Toast.makeText(context, "Location permission denied — Unverified remote punch-in", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val takePictureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            selfieBitmap = bitmap
+            selfieCaptured = true
+            Toast.makeText(context, "Selfie snapshot verified!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            takePictureLauncher.launch(null)
+        } else {
+            Toast.makeText(context, "Camera permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Prominent Disclosure for Location
+    if (showLocationDisclosure) {
+        PermissionDisclosureDialog(
+            icon = Icons.Default.LocationOn,
+            iconTint = BrandBlue,
+            title = "Location Permission Required",
+            featureName = "Geofenced Office Clock-In",
+            dataAccessed = "Foreground GPS coordinates (Latitude and Longitude)",
+            purposeExplanation = "MB EM verifies if you are physically within the company office geofence perimeter (250m) to accurately record your workplace attendance.",
+            backgroundDisclosure = "Location is ONLY requested at the exact moment of clock-in. MB EM NEVER accesses or tracks your location in the background.",
+            transmissionDisclosure = "Your coordinates and geofence verification flag are transmitted securely via HTTPS to company attendance records in Firestore.",
+            onDismiss = { showLocationDisclosure = false },
+            onAffirmativeConsent = {
+                showLocationDisclosure = false
+                locationPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+        )
+    }
+
+    // Prominent Disclosure for Camera
+    if (showCameraDisclosure) {
+        PermissionDisclosureDialog(
+            icon = Icons.Default.CameraAlt,
+            iconTint = BrandBlue,
+            title = "Camera Permission Required",
+            featureName = "Attendance Selfie Snapshot",
+            dataAccessed = "Camera sensor image during selfie capture",
+            purposeExplanation = "Takes a quick front-facing verification photo to prevent buddy punching and confirm physical presence.",
+            backgroundDisclosure = "Camera is accessed ONLY when you tap to take a photo. It is immediately released and never operates in the background.",
+            transmissionDisclosure = "Image is stored securely with your daily punch record in enterprise cloud storage.",
+            onDismiss = { showCameraDisclosure = false },
+            onAffirmativeConsent = {
+                showCameraDisclosure = false
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -109,6 +202,20 @@ fun GeofenceSelfiePunchDialog(
                             fontSize = 11.sp,
                             color = TextMuted
                         )
+
+                        if (!LocationHelper.hasLocationPermission(context)) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { showLocationDisclosure = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = BrandBlue)
+                            ) {
+                                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Grant Location for Office Verification", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
                     }
                 }
 
@@ -154,19 +261,30 @@ fun GeofenceSelfiePunchDialog(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            if (selfieCaptured) "Selfie Captured & Encrypted ✓" else "Front-Camera Attendance Selfie",
+                            if (selfieCaptured) "Selfie Captured & Verified ✓" else "Front-Camera Attendance Selfie",
                             fontWeight = FontWeight.Medium,
                             fontSize = 13.sp,
                             color = if (selfieCaptured) AccentGreen else TextPrimary
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextButton(
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
                             onClick = {
-                                selfieCaptured = true
-                                Toast.makeText(context, "Selfie snapshot verified!", Toast.LENGTH_SHORT).show()
-                            }
+                                val camGranted = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.CAMERA
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (camGranted) {
+                                    takePictureLauncher.launch(null)
+                                } else {
+                                    showCameraDisclosure = true
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (selfieCaptured) AccentGreen else BrandBlue)
                         ) {
-                            Text(if (selfieCaptured) "Retake Selfie" else "Capture Verification Selfie")
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (selfieCaptured) "Retake Selfie" else "Capture Verification Selfie", fontSize = 12.sp)
                         }
                     }
                 }
@@ -527,24 +645,13 @@ fun ExpenseClaimsScreen(
                             }
                         }
                         if (claim.status == "Pending") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(
-                                    onClick = { viewModel.updateExpenseStatus(claim.id, "Approved") },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Text("Approve", fontSize = 12.sp)
-                                }
-                                OutlinedButton(
-                                    onClick = { viewModel.updateExpenseStatus(claim.id, "Rejected") },
-                                    modifier = Modifier.weight(1f),
-                                    contentPadding = PaddingValues(vertical = 4.dp)
-                                ) {
-                                    Text("Reject", fontSize = 12.sp, color = Color.Red)
-                                }
-                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Pending approval by MB Admin",
+                                fontSize = 11.sp,
+                                color = Color(0xFFD97706),
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
                         }
                     }
                 }

@@ -252,46 +252,7 @@ object NotificationHelper {
         }
     }
 
-    fun showOtpAlert(
-        context: Context,
-        otpCode: String,
-        phone: String
-    ) {
-        createNotificationChannels(context)
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("destination", "otp")
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            System.currentTimeMillis().toInt(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val defaultSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-
-        val notificationBuilder = NotificationCompat.Builder(context, CHANNEL_AUTH_ALERTS)
-            .setSmallIcon(R.drawable.ic_stat_milo_general)
-            .setLargeIcon(getMiloLargeIcon(context))
-            .setContentTitle("🔐 MB Traker OTP: $otpCode")
-            .setContentText("Your WhatsApp login code is $otpCode for $phone.")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("One-Time Passcode for MB Traker sign-in is $otpCode. Valid for 10 minutes."))
-            .setAutoCancel(true)
-            .setSound(defaultSound)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setContentIntent(pendingIntent)
-
-        try {
-            val notificationManager = NotificationManagerCompat.from(context)
-            val notificationId = 9999
-            notificationManager.notify(notificationId, notificationBuilder.build())
-        } catch (_: SecurityException) {
-        }
-    }
 
     fun showCallAlert(
         context: Context,

@@ -1,0 +1,24 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-android-mbtracer-17ce56c4-f4af-498e-8a1f-b38e26ce5c0c",
+      "rules": "firestore.rules"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "host": "127.0.0.1",
+      "port": 8085
+    },
+    "auth": {
+      "host": "127.0.0.1",
+      "port": 9099
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}

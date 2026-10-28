@@ -46,7 +46,7 @@ import com.example.ui.screens.MainViewModel
 import com.example.ui.theme.*
 
 /**
- * Main Dashboard Screen for MB Tracker.
+ * Main Dashboard Screen for MB EM.
  * Features Overview Stats, Recent Leads, Quick CRM Actions, and the interactive Milo Character Companion.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -347,7 +347,7 @@ private fun DashboardTopBar(
 
                 Column {
                     Text(
-                        text = "MB Tracker",
+                        text = "MB EM",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 17.sp,
                         color = TextPrimary

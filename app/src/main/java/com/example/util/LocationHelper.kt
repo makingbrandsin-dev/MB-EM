@@ -48,40 +48,56 @@ object LocationHelper {
      */
     @SuppressLint("MissingPermission")
     fun verifyOfficeGeofence(context: Context): GeofenceResult {
-        var currentLat = OFFICE_LAT
-        var currentLng = OFFICE_LNG
+        if (!hasLocationPermission(context)) {
+            return GeofenceResult(
+                isInsideGeofence = false,
+                distanceMeters = -1f,
+                latitude = 0.0,
+                longitude = 0.0,
+                locationName = "Permission Required",
+                statusMessage = "⚠️ Location permission not granted. Geofence attendance cannot be verified."
+            )
+        }
+
         var acquiredRealGps = false
+        var currentLat = 0.0
+        var currentLng = 0.0
 
-        if (hasLocationPermission(context)) {
-            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-            if (locationManager != null) {
-                val gpsLoc = try { locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) } catch (_: Exception) { null }
-                val netLoc = try { locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { null }
-                val bestLoc = gpsLoc ?: netLoc
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (locationManager != null) {
+            val gpsLoc = try { locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER) } catch (_: Exception) { null }
+            val netLoc = try { locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER) } catch (_: Exception) { null }
+            val bestLoc = gpsLoc ?: netLoc
 
-                if (bestLoc != null) {
-                    currentLat = bestLoc.latitude
-                    currentLng = bestLoc.longitude
-                    acquiredRealGps = true
-                }
+            if (bestLoc != null) {
+                currentLat = bestLoc.latitude
+                currentLng = bestLoc.longitude
+                acquiredRealGps = true
             }
         }
 
-        // Calculate distance between user location and Office
+        if (!acquiredRealGps) {
+            return GeofenceResult(
+                isInsideGeofence = false,
+                distanceMeters = -1f,
+                latitude = 0.0,
+                longitude = 0.0,
+                locationName = "GPS Signal Unavailable",
+                statusMessage = "⚠️ GPS location fix unavailable. Recorded as remote attendance without geofence verification."
+            )
+        }
+
+        // Calculate distance between user location and Office HQ
         val results = FloatArray(1)
         Location.distanceBetween(currentLat, currentLng, OFFICE_LAT, OFFICE_LNG, results)
         val distance = results[0]
         val isInside = distance <= GEOFENCE_RADIUS_METERS
 
-        val locationName = if (acquiredRealGps) {
-            resolveAddress(context, currentLat, currentLng)
-        } else {
-            OFFICE_NAME
-        }
+        val locationName = resolveAddress(context, currentLat, currentLng)
 
         val statusMsg = when {
             isInside -> "✅ Verified inside Office Perimeter (${distance.toInt()}m from HQ)"
-            else -> "📍 Outside Office Geofence (${(distance / 1000f).let { String.format(Locale.US, "%.1f km", it) }} away) — Remote Punch-In Recorded"
+            else -> "📍 Outside Office Geofence (${(distance / 1000f).let { String.format(Locale.US, "%.1f km", it) }} away) — Remote Attendance Recorded"
         }
 
         return GeofenceResult(
